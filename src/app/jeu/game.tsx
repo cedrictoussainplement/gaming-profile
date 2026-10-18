@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { profile } from "@/data/profile";
-import { realDate, type GameDetail, type Trophy } from "@/lib/library";
+import { realDate, type CombinedTrophy, type GameDetail } from "@/lib/library";
 import { formatHours, platformName } from "../live";
 import { TrackerPanel, TrackersProvider } from "../tracker-stats";
 import { fmt, formatRarity, GradeCounts, Progress, rarityClass } from "../trophy-ui";
@@ -35,9 +35,11 @@ function trackersFor(name: string) {
   });
 }
 
-type Filter = "earned" | "locked" | "all";
+type Filter = "earned" | "locked" | "partial" | "all";
 
-function TrophyItem({ t }: { t: Trophy }) {
+const roleLabel = (role: string) => (role === "main" ? "Main" : "Smurf");
+
+function TrophyItem({ t, multi }: { t: CombinedTrophy; multi: boolean }) {
   const date = realDate(t.earnedAt);
   return (
     <div className={`achievement ${t.earnedAt ? rarityClass(t.rarity) : "locked"}`}>
@@ -53,6 +55,18 @@ function TrophyItem({ t }: { t: Trophy }) {
           {t.rarity !== null && date ? " · " : null}
           {date ? formatDate(date) : null}
         </div>
+        {multi && t.earnedBy.length > 0 && (
+          <div className="earned-by">
+            {t.earnedBy.map((e) => {
+              const acc = accountOf(e.accountId);
+              return (
+                <span key={e.accountId} className={`badge role-${acc?.role ?? "main"}`} title={acc?.handle ?? e.accountId}>
+                  {acc ? `${roleLabel(acc.role)} · ${acc.handle}` : e.accountId}
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -60,38 +74,55 @@ function TrophyItem({ t }: { t: Trophy }) {
 
 function TrophySet({ set }: { set: GameDetail["sets"][number] }) {
   const [filter, setFilter] = useState<Filter>("earned");
-  const account = accountOf(set.accountId);
+  const multi = set.accounts.length > 1;
   const sorted = useMemo(() => {
     const earned = set.trophies.filter((t) => t.earnedAt).sort((a, b) => (a.rarity ?? 101) - (b.rarity ?? 101));
     const locked = set.trophies.filter((t) => !t.earnedAt).sort((a, b) => (b.rarity ?? -1) - (a.rarity ?? -1));
-    return { earned, locked, all: [...earned, ...locked] };
-  }, [set.trophies]);
+    const partial = earned.filter((t) => t.earnedBy.length < set.accounts.length);
+    return { earned, locked, partial, all: [...earned, ...locked] };
+  }, [set.trophies, set.accounts.length]);
   const list = sorted[filter];
+  const tabs: [Filter, string][] = [
+    ["earned", `Obtenus (${sorted.earned.length})`],
+    ["locked", `À obtenir (${sorted.locked.length})`],
+    ...(multi ? ([["partial", `Sur un seul compte (${sorted.partial.length})`]] as [Filter, string][]) : []),
+    ["all", "Tous"],
+  ];
 
   return (
     <div className="card trophy-set">
       <div className="trophy-set-head">
         <div>
           <div className="platform-name">{set.platform === "psn" ? "Trophées PlayStation" : "Succès Steam"}</div>
-          {account && (
-            <div className="platform-games">
-              {account.handle} <span className={`badge role-${account.role}`}>{account.role === "main" ? "Main" : "Smurf"}</span>
-            </div>
-          )}
+          <div className="platform-games">
+            {multi ? `${set.accounts.length} comptes réunis` : (accountOf(set.accounts[0]?.accountId ?? "")?.handle ?? "")}
+          </div>
         </div>
         {set.total ? <Progress earned={set.earned ?? 0} total={set.total} platinum={Boolean(set.grades?.earned.platinum)} /> : null}
       </div>
+      {multi && (
+        <div className="set-accounts">
+          {set.accounts.map((a) => {
+            const acc = accountOf(a.accountId);
+            return (
+              <div key={a.accountId} className="set-account">
+                <span className="account-handle">{acc?.handle ?? a.accountId}</span>
+                {acc && <span className={`badge role-${acc.role}`}>{roleLabel(acc.role)}</span>}
+                {a.total ? (
+                  <Progress earned={a.earned ?? 0} total={a.total} platinum={a.platinum} />
+                ) : (
+                  <span className="stat-hint">pas encore chargé</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {set.grades && <GradeCounts counts={set.grades.earned} defined={set.grades.defined} />}
       {set.trophies.length > 0 ? (
         <>
           <div className="tabs" role="tablist">
-            {(
-              [
-                ["earned", `Obtenus (${sorted.earned.length})`],
-                ["locked", `À obtenir (${sorted.locked.length})`],
-                ["all", "Tous"],
-              ] as const
-            ).map(([id, label]) => (
+            {tabs.map(([id, label]) => (
               <button key={id} className="tab" role="tab" aria-selected={filter === id} onClick={() => setFilter(id)}>
                 {label}
               </button>
@@ -99,7 +130,7 @@ function TrophySet({ set }: { set: GameDetail["sets"][number] }) {
           </div>
           <div className="achievements">
             {list.map((t) => (
-              <TrophyItem key={t.id} t={t} />
+              <TrophyItem key={t.id} t={t} multi={multi} />
             ))}
           </div>
           {!list.length && <p className="empty">Rien ici pour l&apos;instant.</p>}
@@ -181,7 +212,7 @@ export function GameView() {
         <div className="card tile">
           <div className="stat-label">Succès et trophées</div>
           <div className="stat-value">{game.sets.length ? fmt(earned) : "—"}</div>
-          <div className="stat-hint">{game.sets.length ? "obtenus, tous comptes" : "aucun suivi pour ce jeu"}</div>
+          <div className="stat-hint">{game.sets.length ? "obtenus, main et smurf réunis" : "aucun suivi pour ce jeu"}</div>
         </div>
       </div>
 
@@ -210,7 +241,7 @@ export function GameView() {
           <h2>Succès et trophées</h2>
           <div className="trophy-sets">
             {game.sets.map((s) => (
-              <TrophySet key={`${s.accountId}-${s.platform}`} set={s} />
+              <TrophySet key={`${s.platform}-${s.accounts.map((a) => a.accountId).join("+")}`} set={s} />
             ))}
           </div>
         </section>

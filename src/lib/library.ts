@@ -73,17 +73,25 @@ export interface GameDetail {
   lastPlayed: string | null;
   platforms: string[];
   accounts: { id: string; platform: string; minutes: number; lastPlayed: string | null }[];
+  /** Un bloc par liste de succès (Steam ou PSN), main et smurf réunis. */
   sets: {
-    accountId: string;
     platform: string;
+    /** Union des comptes : un succès compte dès qu'un compte l'a. */
     earned: number | null;
     total: number | null;
     grades: { earned: TrophyCounts; defined: TrophyCounts } | null;
     lastEarned: string | null;
-    /** Détail pas encore téléchargé (ou à rafraîchir). */
+    /** Détail pas encore téléchargé (ou à rafraîchir) sur au moins un compte. */
     pending: boolean;
-    trophies: Trophy[];
+    /** Progression de chaque compte séparément. */
+    accounts: { accountId: string; earned: number | null; total: number | null; platinum: boolean; pending: boolean }[];
+    trophies: CombinedTrophy[];
   }[];
+}
+
+export interface CombinedTrophy extends Trophy {
+  /** Comptes qui l'ont débloqué, avec la date (earnedAt : la première). */
+  earnedBy: { accountId: string; earnedAt: string }[];
 }
 
 /** Date valide pour l'affichage (Steam et PSN mettent 1970 quand ils n'ont pas la date). */

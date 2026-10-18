@@ -1254,3 +1254,30 @@ a.achievement:hover {
     flex-wrap: wrap;
   }
 }
+
+/* Main et smurf réunis sur la fiche jeu */
+.set-accounts {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.set-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.set-account .progress {
+  margin-left: auto;
+  min-width: 160px;
+}
+.earned-by {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.earned-by .badge {
+  font-size: 10px;
+}

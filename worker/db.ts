@@ -1,5 +1,6 @@
 import type { Stats } from "../src/lib/stats";
 import { allAccounts } from "./accounts";
+import { readCombined } from "./combined";
 
 /** Un jeu tel que renvoyé par une source, temps cumulé depuis toujours. */
 export interface PlaytimeItem {
@@ -237,13 +238,21 @@ export async function readStats(db: D1Database): Promise<Stats> {
     db.prepare("SELECT account_id, MAX(at) AS at FROM sync_runs WHERE ok = 1 GROUP BY account_id"),
     db.prepare(
       "SELECT (SELECT COUNT(*) FROM games g WHERE g.hidden = 0 AND EXISTS (SELECT 1 FROM game_aliases al WHERE al.game_id = g.id AND " +
-        "(EXISTS (SELECT 1 FROM library l WHERE l.alias_id = al.id) OR EXISTS (SELECT 1 FROM playtime_snapshots s WHERE s.alias_id = al.id)))) AS owned, " +
-        "(SELECT COALESCE(SUM(earned), 0) FROM trophy_sets WHERE platform = 'steam') AS achievements, " +
-        "(SELECT COALESCE(SUM(earned), 0) FROM trophy_sets WHERE platform = 'psn') AS trophies, " +
-        "(SELECT COALESCE(SUM(json_extract(grades, '$.earned.platinum')), 0) FROM trophy_sets WHERE platform = 'psn') AS platinums",
+        "(EXISTS (SELECT 1 FROM library l WHERE l.alias_id = al.id) OR EXISTS (SELECT 1 FROM playtime_snapshots s WHERE s.alias_id = al.id)))) AS owned",
     ),
   ]);
-  const library = (libraryRow.results[0] ?? { owned: 0, achievements: 0, trophies: 0, platinums: 0 }) as Stats["library"];
+  // Main et smurf réunis : un succès obtenu sur les deux comptes ne compte qu'une fois.
+  const library: Stats["library"] = {
+    owned: (libraryRow.results[0] as { owned: number } | undefined)?.owned ?? 0,
+    achievements: 0,
+    trophies: 0,
+    platinums: 0,
+  };
+  for (const s of await readCombined(db)) {
+    if (s.platform === "steam") library.achievements += s.earned ?? 0;
+    else library.trophies += s.earned ?? 0;
+    library.platinums += s.grades?.earned.platinum ?? 0;
+  }
   type Row = {
     account_id: string;
     alias_id: number;

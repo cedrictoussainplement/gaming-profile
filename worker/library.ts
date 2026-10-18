@@ -1,6 +1,7 @@
 // Lecture de la bibliothèque (GET /api/library) et de la fiche d'un jeu (GET /api/game).
 
-import type { GameDetail, Library, LibraryGame, RareTrophy, Trophy, TrophyCounts } from "../src/lib/library";
+import type { CombinedTrophy, GameDetail, Library, LibraryGame, RareTrophy, TrophyCounts } from "../src/lib/library";
+import { parseGrades, readCombined, zero } from "./combined";
 
 const LATEST_PLAYTIME =
   "SELECT s.account_id, a.platform, al.game_id, s.alias_id, s.minutes, s.last_played FROM playtime_snapshots s " +
@@ -8,34 +9,16 @@ const LATEST_PLAYTIME =
   "WHERE s.taken_on = (SELECT MAX(taken_on) FROM playtime_snapshots WHERE account_id = s.account_id AND alias_id = s.alias_id)";
 
 type PlayRow = { account_id: string; platform: string; game_id: number; alias_id: number; minutes: number; last_played: string | null };
-type SetRow = {
-  account_id: string;
-  alias_id: number;
-  platform: string;
-  game_id: number;
-  earned: number | null;
-  total: number | null;
-  grades: string | null;
-  last_earned: string | null;
-  pending: number;
-};
-
-const zero = (): TrophyCounts => ({ bronze: 0, silver: 0, gold: 0, platinum: 0 });
-const parseGrades = (g: string | null) => (g ? (JSON.parse(g) as { earned: TrophyCounts; defined: TrophyCounts }) : null);
 const later = (a: string | null, b: string | null) => (b && (!a || b > a) ? b : a);
 
-const SETS =
-  "SELECT ts.account_id, ts.alias_id, ts.platform, al.game_id, ts.earned, ts.total, ts.grades, ts.last_earned, " +
-  "(ts.fetched IS NOT ts.wanted) AS pending FROM trophy_sets ts JOIN game_aliases al ON al.id = ts.alias_id";
-
 export async function readLibrary(db: D1Database): Promise<Library> {
-  const [games, owned, played, sets, rarest] = await db.batch([
+  const sets = await readCombined(db);
+  const [games, owned, played, rarest] = await db.batch([
     db.prepare("SELECT id, name, cover_url FROM games WHERE hidden = 0"),
     db.prepare(
       "SELECT l.account_id, a.platform, al.game_id FROM library l JOIN accounts a ON a.id = l.account_id JOIN game_aliases al ON al.id = l.alias_id",
     ),
     db.prepare(LATEST_PLAYTIME),
-    db.prepare(SETS),
     db.prepare(
       "SELECT t.name, t.icon, t.grade, t.rarity, t.earned_at, ts.platform, al.game_id, g.name AS game FROM trophies t " +
         "JOIN trophy_sets ts ON ts.account_id = t.account_id AND ts.alias_id = t.alias_id " +
@@ -89,14 +72,13 @@ export async function readLibrary(db: D1Database): Promise<Library> {
   let pendingTrophies = 0;
   const psnTrophies = zero();
   const completed = new Set<number>();
-  for (const s of sets.results as SetRow[]) {
+  for (const s of sets) {
     if (s.pending) pendingTrophies++;
-    const grades = parseGrades(s.grades);
     if (s.platform === "steam") steamAchievements += s.earned ?? 0;
-    if (grades) for (const k of Object.keys(psnTrophies) as (keyof TrophyCounts)[]) psnTrophies[k] += grades.earned[k] ?? 0;
-    const e = entry(s.game_id);
+    if (s.grades) for (const k of Object.keys(psnTrophies) as (keyof TrophyCounts)[]) psnTrophies[k] += s.grades.earned[k] ?? 0;
+    const e = entry(s.gameId);
     if (!e) continue;
-    if (grades?.earned.platinum) e.platinum = true;
+    if (s.grades?.earned.platinum) e.platinum = true;
     if (s.total && s.earned !== null) {
       const best = e.achievements;
       if (!best || s.earned / s.total > best.earned / best.total) e.achievements = { earned: s.earned, total: s.total };
@@ -161,18 +143,18 @@ export async function readGame(db: D1Database, id: number): Promise<GameDetail |
   }>();
   if (!game) return null;
 
-  const [owned, played, sets, trophies] = await db.batch([
+  const sets = (await readCombined(db, id)).filter((s) => s.pending || s.total !== 0);
+  const [owned, played, trophies] = await db.batch([
     db
       .prepare(
         "SELECT DISTINCT l.account_id, a.platform FROM library l JOIN accounts a ON a.id = l.account_id JOIN game_aliases al ON al.id = l.alias_id WHERE al.game_id = ?",
       )
       .bind(id),
     db.prepare(`${LATEST_PLAYTIME} AND al.game_id = ?`).bind(id),
-    db.prepare(`${SETS} WHERE al.game_id = ?`).bind(id),
     db
       .prepare(
         "SELECT t.account_id, t.alias_id, t.trophy_id, t.name, t.description, t.icon, t.grade, t.hidden, t.earned_at, t.rarity " +
-          "FROM trophies t JOIN game_aliases al ON al.id = t.alias_id WHERE al.game_id = ?",
+          "FROM trophies t JOIN game_aliases al ON al.id = t.alias_id WHERE al.game_id = ? ORDER BY t.account_id",
       )
       .bind(id),
   ]);
@@ -188,7 +170,8 @@ export async function readGame(db: D1Database, id: number): Promise<GameDetail |
     accounts.set(r.account_id, a);
   }
 
-  const byKey = new Map<string, Trophy[]>();
+  // Un succès par (alias, identifiant), quel que soit le nombre de comptes qui l'ont.
+  const byAlias = new Map<number, Map<string, CombinedTrophy>>();
   for (const t of trophies.results as {
     account_id: string;
     alias_id: number;
@@ -201,20 +184,28 @@ export async function readGame(db: D1Database, id: number): Promise<GameDetail |
     earned_at: string | null;
     rarity: number | null;
   }[]) {
-    const key = `${t.account_id}|${t.alias_id}`;
-    const list = byKey.get(key) ?? [];
-    list.push({
-      id: t.trophy_id,
-      // Les succès cachés ne se dévoilent qu'une fois obtenus.
-      name: t.hidden && !t.earned_at ? "Succès caché" : t.name,
-      description: t.hidden && !t.earned_at ? null : t.description,
-      icon: t.icon,
-      grade: t.grade,
-      hidden: Boolean(t.hidden),
-      earnedAt: t.earned_at,
-      rarity: t.rarity,
-    });
-    byKey.set(key, list);
+    const list = byAlias.get(t.alias_id) ?? new Map();
+    byAlias.set(t.alias_id, list);
+    let c = list.get(t.trophy_id);
+    if (!c) {
+      c = {
+        id: t.trophy_id,
+        name: t.name,
+        description: t.description,
+        icon: t.icon,
+        grade: t.grade,
+        hidden: Boolean(t.hidden),
+        earnedAt: null,
+        rarity: t.rarity,
+        earnedBy: [],
+      };
+      list.set(t.trophy_id, c);
+    }
+    c.rarity ??= t.rarity;
+    if (t.earned_at) {
+      c.earnedBy.push({ accountId: t.account_id, earnedAt: t.earned_at });
+      if (!c.earnedAt || t.earned_at < c.earnedAt) c.earnedAt = t.earned_at;
+    }
   }
 
   const accountList = [...accounts.values()].sort((a, b) => b.minutes - a.minutes);
@@ -226,18 +217,24 @@ export async function readGame(db: D1Database, id: number): Promise<GameDetail |
     lastPlayed: accountList.reduce<string | null>((d, a) => later(d, a.lastPlayed), null),
     platforms: [...new Set(accountList.map((a) => a.platform))],
     accounts: accountList,
-    // Jeu Steam sans succès : rien à afficher.
-    sets: (sets.results as SetRow[])
-      .filter((s) => s.pending || s.total !== 0)
-      .map((s) => ({
-        accountId: s.account_id,
-        platform: s.platform,
-        earned: s.earned,
-        total: s.total,
-        grades: parseGrades(s.grades),
-        lastEarned: s.last_earned,
-        pending: Boolean(s.pending),
-        trophies: byKey.get(`${s.account_id}|${s.alias_id}`) ?? [],
+    sets: sets.map((s) => ({
+      platform: s.platform,
+      earned: s.earned,
+      total: s.total,
+      grades: s.grades,
+      lastEarned: s.lastEarned,
+      pending: s.pending,
+      accounts: s.accounts.map((a) => ({
+        accountId: a.account_id,
+        earned: a.earned,
+        total: a.total,
+        platinum: Boolean(parseGrades(a.grades)?.earned.platinum),
+        pending: Boolean(a.pending),
       })),
+      trophies: [...(byAlias.get(s.aliasId)?.values() ?? [])].map((t) =>
+        // Les succès cachés ne se dévoilent qu'une fois obtenus, sur au moins un compte.
+        t.hidden && !t.earnedAt ? { ...t, name: "Succès caché", description: null } : t,
+      ),
+    })),
   };
 }
