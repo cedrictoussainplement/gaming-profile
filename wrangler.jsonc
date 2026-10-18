@@ -17,8 +17,7 @@
     {
       "binding": "DB",
       "database_name": "gaming-profile",
-      // À remplacer par l'id affiché par `npx wrangler d1 create gaming-profile` (pas secret).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "fc443380-e5a3-4440-97ef-52d9c21294a5",
       "migrations_dir": "worker/migrations"
     }
   ],

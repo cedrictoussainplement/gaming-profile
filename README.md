@@ -28,7 +28,7 @@ Pour `preview`, mets les secrets de test dans un fichier `.dev.vars` (ignoré pa
 
 Le site passe de Cloudflare Pages à un **Worker** (Pages ne sait pas lancer de cron).
 
-1. **Créer la base** : Cloudflare → Storage & Databases → D1 → Create, nom `gaming-profile`. Copie son *Database ID* dans [`wrangler.jsonc`](wrangler.jsonc) à la place des zéros (ce n'est pas un secret).
+1. **Base D1** : déjà créée (`gaming-profile`), son id est dans [`wrangler.jsonc`](wrangler.jsonc). Pour repartir d'un autre compte : Storage & Databases → D1 → Create, puis remplacer `database_id`.
 2. **Brancher le dépôt** : Workers & Pages → Create → Import a repository → ce dépôt.
    - Build command : `npm run build`
    - Deploy command : `npx wrangler d1 migrations apply gaming-profile --remote && npx wrangler deploy`
