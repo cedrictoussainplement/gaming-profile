@@ -12,7 +12,8 @@
     "run_worker_first": ["/api/*"]
   },
   // Tous les jours à 4 h UTC : heures et bibliothèque. Toutes les 10 min : un lot de succès / trophées.
-  "triggers": { "crons": ["0 4 * * *", "*/10 * * * *"] },
+  // Toutes les 3 h (à la demie) : stats des trackers.
+  "triggers": { "crons": ["0 4 * * *", "*/10 * * * *", "30 */3 * * *"] },
   "d1_databases": [
     {
       "binding": "DB",

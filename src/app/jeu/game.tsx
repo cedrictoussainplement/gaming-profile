@@ -2,12 +2,13 @@
 
 // Fiche d'un jeu : /jeu?id=42, lit /api/game?id=42.
 
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { profile } from "@/data/profile";
 import { realDate, type GameDetail, type Trophy } from "@/lib/library";
 import { formatHours, platformName } from "../live";
+import { TrackerPanel, TrackersProvider } from "../tracker-stats";
 import { fmt, formatRarity, GradeCounts, Progress, rarityClass } from "../trophy-ui";
 
 const accountOf = (id: string) => {
@@ -215,28 +216,26 @@ export function GameView() {
         </section>
       )}
 
-      <section>
-        <h2>Stats tracker</h2>
-        {trackers.length || isTarkov ? (
-          <div className="card links">
-            {isTarkov && (
+      {(trackers.length > 0 || isTarkov) && (
+        <section>
+          <h2>Stats tracker</h2>
+          {isTarkov && (
+            <div className="card links">
               <a className="link-row" href="/#tarkov">
                 <span className="link-name">Stats Tarkov complètes</span>
                 <span className="link-handle">sur l&apos;accueil</span>
               </a>
-            )}
-            {trackers.map((t) => (
-              <a key={t.id} className="link-row" href={t.url} target="_blank" rel="noopener noreferrer">
-                <span className="link-name">{t.account}</span>
-                <span className="link-handle">{t.platform}</span>
-                <span className={`badge role-${t.role}`}>{t.role === "main" ? "Main" : "Smurf"}</span>
-                <ExternalLink size={14} className="account-ext" />
-              </a>
-            ))}
-          </div>
-        ) : null}
-        <p className="empty tracker-note">Les stats du tracker s&apos;afficheront ici directement, jeu par jeu.</p>
-      </section>
+            </div>
+          )}
+          <TrackersProvider>
+            <div className="tracker-panels">
+              {trackers.map((t) => (
+                <TrackerPanel key={t.id} tracker={t} />
+              ))}
+            </div>
+          </TrackersProvider>
+        </section>
+      )}
     </>
   );
 }

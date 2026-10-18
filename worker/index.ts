@@ -7,6 +7,10 @@
 //   GET  /api/game?id=  fiche d'un jeu : heures par compte, succès et trophées, public
 //   GET  /api/tarkov    profils Tarkov importés, public
 //   POST /api/tarkov    import d'un profil JSON tarkov.dev, ?mode=regular|pve|pvp-season|arena (clé INGEST_KEY)
+//   GET  /api/trackers  stats de chaque tracker, public ; relance la synchro si elle date de plus de 3 h
+//                       ?raw=<id> : réponse brute de l'API pour ce tracker
+//   POST /api/trackers/sync          interroge toutes les sources tout de suite, ?id= pour une seule (clé INGEST_KEY)
+//   POST /api/trackers/import?id=    stats saisies à la main {headline, stats: [{label, value}]} (clé INGEST_KEY)
 
 import { psnAccounts, steamAccounts } from "./accounts";
 import { logSync, readStats, recordPlaytime, upsertAccounts, type PlaytimeItem } from "./db";
@@ -15,11 +19,14 @@ import { parsePlaynite } from "./sources/playnite";
 import { fetchPsnPlayed, fetchPsnPurchased, fetchPsnTrophyTitles, psnAuth } from "./sources/psn";
 import { fetchSteam } from "./sources/steam";
 import { recordPsnTrophyTitles, syncTrophies } from "./trophies";
+import { claimStaleSync, importTrackerStats, readTrackerRaw, readTrackers, syncTrackers, trackerSecrets } from "./trackers";
 import { guessMode, isMode, summarizeTarkov } from "./sources/tarkov";
 import { tarkovAccountId, type TarkovProfile, type TarkovResponse } from "../src/lib/tarkov";
 
 /** Doit correspondre au 2e cron de wrangler.jsonc. */
 const TROPHY_CRON = "*/10 * * * *";
+/** Doit correspondre au 3e cron de wrangler.jsonc. */
+const TRACKER_CRON = "30 */3 * * *";
 
 export interface Env {
   DB: D1Database;
@@ -127,9 +134,14 @@ async function health(env: Env) {
       INGEST_KEY: { ...(await secret("INGEST_KEY")), ...(ingest ? { fingerprint: await fingerprint(ingest) } : {}) },
       STEAM_API_KEY: await secret("STEAM_API_KEY"),
       ...Object.fromEntries(await Promise.all(psnAccounts.map(async (a) => [a.npssoSecret, await secret(a.npssoSecret)]))),
+      ...Object.fromEntries(await Promise.all(trackerSecrets.map(async (name) => [name, await secret(name)]))),
     },
     lastSyncs: results,
   };
+}
+
+function logTrackers(results: Awaited<ReturnType<typeof syncTrackers>>) {
+  for (const r of results) if (!r.ok) console.log(`Tracker ${r.id} : ${r.skipped ?? r.error}`);
 }
 
 const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
@@ -184,7 +196,7 @@ async function importTarkov(request: Request, env: Env, url: URL): Promise<Respo
   return json({ mode, nickname: profile.nickname, level: profile.level, warning, hours });
 }
 
-async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
+async function handleApi(request: Request, env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
   if (url.pathname === "/api/stats" && request.method === "GET") {
     return json(await readStats(env.DB), 200, { "cache-control": "public, max-age=300" });
   }
@@ -201,6 +213,25 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const id = Number(url.searchParams.get("id"));
     const game = Number.isInteger(id) && id > 0 ? await readGame(env.DB, id) : null;
     return game ? json(game, 200, { "cache-control": "public, max-age=300" }) : json({ error: "Jeu introuvable" }, 404);
+  }
+
+  if (url.pathname === "/api/trackers" && request.method === "GET") {
+    const raw = url.searchParams.get("raw");
+    if (raw) return json(await readTrackerRaw(env, raw), 200, { "cache-control": "no-store" });
+    if (await claimStaleSync(env)) ctx.waitUntil(syncTrackers(env).then(logTrackers));
+    return json(await readTrackers(env), 200, { "cache-control": "public, max-age=120" });
+  }
+
+  if (url.pathname === "/api/trackers/sync" || url.pathname === "/api/trackers/import") {
+    if (request.method !== "POST") return json({ error: "POST attendu" }, 405);
+    if (!(await authorized(request, env))) return json({ error: "Clé invalide" }, 401);
+    const id = url.searchParams.get("id") ?? undefined;
+    if (url.pathname === "/api/trackers/sync") return json({ results: await syncTrackers(env, id) });
+    try {
+      return json({ id, summary: await importTrackerStats(env, id ?? "", await request.json()) });
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : "JSON invalide" }, 400);
+    }
   }
 
   if (url.pathname === "/api/tarkov" && request.method === "GET") {
@@ -242,13 +273,17 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) return handleApi(request, env, url);
+    if (url.pathname.startsWith("/api/")) return handleApi(request, env, url, ctx);
     return env.ASSETS.fetch(request);
   },
 
   async scheduled(event, env, ctx) {
+    if (event.cron === TRACKER_CRON) {
+      ctx.waitUntil(syncTrackers(env).then(logTrackers));
+      return;
+    }
     if (event.cron === TROPHY_CRON) {
       ctx.waitUntil(
         syncTrophies(env).then((r) => {

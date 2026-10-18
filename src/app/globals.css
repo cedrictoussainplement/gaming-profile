@@ -817,7 +817,10 @@ a.account:hover,
   font-weight: 500;
 }
 
-.import input[type="password"] {
+.import input[type="password"],
+.import input:not([type]),
+.import select,
+.import textarea {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -1137,8 +1140,94 @@ a.achievement:hover {
   background: var(--surface);
 }
 
-.tracker-note {
-  margin-top: 10px;
+/* Stats des trackers */
+.tracker-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.tracker-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tracker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tracker-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.tracker-rank {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.tracker-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tracker-open:hover {
+  color: var(--text);
+}
+
+.tracker-tiles .tile {
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+.tracker-tiles .stat-value {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.tracker-group {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px 0 2px;
+  overflow-x: auto;
+}
+
+.tracker-group > .stat-label {
+  padding: 0 16px 4px;
+}
+
+.tracker-foot {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tracker-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tracker-mini b {
+  color: var(--text);
+}
+
+.tracker-mini-head {
+  width: 100%;
+  font-weight: 600;
+  color: var(--text);
 }
 
 @media (max-width: 760px) {

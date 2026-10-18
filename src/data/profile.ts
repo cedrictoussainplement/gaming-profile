@@ -195,6 +195,7 @@ export const profile: Profile = {
     { id: "otg", game: "Off the Grid", account: "fr__eask_", platform: "PS5", role: "main", url: "https://tracker.gg/off-the-grid/profile/psn/fr__eask_/overview?gamemode=extraction-royale-trios", colors: ["#16a37f", "#0b2a2a"] },
     { id: "wardogs", game: "WARDOGS", account: "reask#1160", platform: "PC", role: "main", url: "https://wardogs.tools/player/68d18de7-dc5d-4613-b91b-dcb8fb512fe3", colors: ["#7a8b3c", "#1d2412"] },
     { id: "valorant", game: "Valorant", account: "reask#2736", platform: "PC", role: "main", url: "https://tracker.gg/valorant/profile/riot/reask%232736", colors: ["#ff4655", "#0f1923"] },
+    { id: "coc", game: "Clash of Clans", account: "eask", platform: "Mobile", role: "main", url: "https://clashofstats.com/fr/players/eask-8GR2UC8L", colors: ["#f2b632", "#5b3a12"] },
   ],
   community: [
     { id: "twitch", name: "Twitch", handle: "reask0ner", url: "https://www.twitch.tv/reask0ner" },
