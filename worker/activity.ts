@@ -6,10 +6,21 @@
 import type { Activity } from "../src/lib/library";
 
 const DAYS = 60;
+const MONTHS = 12;
+
+/** "2026-10", "2026-09"… les 12 derniers mois, du plus ancien au plus récent. */
+function lastMonths() {
+  const now = new Date();
+  return Array.from({ length: MONTHS }, (_, i) => {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (MONTHS - 1 - i), 1));
+    return d.toISOString().slice(0, 7);
+  });
+}
 
 export async function readActivity(db: D1Database): Promise<Activity> {
   const since = new Date(Date.now() - DAYS * 86400 * 1000).toISOString().slice(0, 10);
-  const [unlocks, sessions] = await db.batch([
+  const months = lastMonths();
+  const [unlocks, sessions, unlocksByMonth, minutesByMonth] = await db.batch([
     db
       .prepare(
         "SELECT t.name, t.icon, t.grade, t.rarity, t.earned_at, t.account_id, ts.platform, g.id AS game_id, g.name AS game FROM trophies t " +
@@ -28,6 +39,20 @@ export async function readActivity(db: D1Database): Promise<Activity> {
           "WHERE s.taken_on >= ? AND g.hidden = 0 AND added > 0 ORDER BY s.taken_on DESC LIMIT 300",
       )
       .bind(since),
+    // Un succès obtenu sur les deux comptes compte une fois, au mois du premier déblocage.
+    db
+      .prepare(
+        "SELECT m AS month, COUNT(*) AS n FROM (SELECT substr(MIN(earned_at), 1, 7) AS m FROM trophies WHERE earned_at >= '2000' " +
+          "GROUP BY alias_id, trophy_id) WHERE m >= ? GROUP BY m",
+      )
+      .bind(months[0]),
+    db
+      .prepare(
+        "SELECT substr(taken_on, 1, 7) AS month, SUM(added) AS n FROM (SELECT s.taken_on, s.minutes - (SELECT p.minutes FROM playtime_snapshots p " +
+          "WHERE p.account_id = s.account_id AND p.alias_id = s.alias_id AND p.taken_on < s.taken_on ORDER BY p.taken_on DESC LIMIT 1) AS added " +
+          "FROM playtime_snapshots s WHERE s.taken_on >= ?) WHERE added > 0 GROUP BY month",
+      )
+      .bind(`${months[0]}-01`),
   ]);
 
   const days = new Map<string, Activity["days"][number]>();
@@ -77,5 +102,11 @@ export async function readActivity(db: D1Database): Promise<Activity> {
       minutes: s.added,
     });
   }
-  return { days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) };
+  const count = (rows: unknown[]) => new Map((rows as { month: string; n: number }[]).map((r) => [r.month, r.n]));
+  const u = count(unlocksByMonth.results);
+  const m = count(minutesByMonth.results);
+  return {
+    months: months.map((month) => ({ month, minutes: m.get(month) ?? 0, unlocks: u.get(month) ?? 0 })),
+    days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)),
+  };
 }
