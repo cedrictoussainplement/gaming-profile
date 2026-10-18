@@ -866,3 +866,302 @@ a.account:hover,
     padding: 9px 10px;
   }
 }
+
+/* Bibliothèque et fiche jeu */
+.page-head h1 {
+  font-size: 30px;
+}
+
+.page-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.see-all,
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.back {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.back:hover,
+.see-all:hover {
+  color: var(--text);
+}
+
+.game-foot {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-foot .game-hours {
+  margin: 0;
+  padding: 0;
+}
+
+.game-hours.unplayed {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.game-tags {
+  flex-wrap: wrap;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text);
+}
+
+.progress-fill.done {
+  background: #d4a017;
+}
+
+.progress-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.grade-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: 1px;
+  flex-shrink: 0;
+}
+
+.grade-dot.platinum {
+  background: linear-gradient(135deg, #e5e7eb, #8fa3bf);
+  box-shadow: 0 0 0 1px #8fa3bf;
+}
+
+.grade-dot.gold {
+  background: #d4a017;
+}
+
+.grade-dot.silver {
+  background: #a8acb3;
+}
+
+.grade-dot.bronze {
+  background: #b0703c;
+}
+
+.grade-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-hint .grade-counts {
+  font-size: 12px;
+  font-weight: 500;
+  gap: 2px 8px;
+}
+
+.grade-count {
+  display: inline-flex;
+  align-items: center;
+}
+
+.grade-of {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 0;
+  color: var(--text);
+  outline: none;
+}
+
+.toolbar select {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.library-grid {
+  margin: 16px 0;
+}
+
+.game-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.game-hero h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.game-hero-cover {
+  width: 240px;
+  aspect-ratio: 460 / 215;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-hover);
+}
+
+.game-tiles {
+  margin-top: 24px;
+}
+
+.game-accounts {
+  padding: 8px;
+  max-width: 640px;
+}
+
+.trophy-sets {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trophy-set {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trophy-set-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trophy-set-head .progress {
+  min-width: 220px;
+}
+
+.achievement.locked img,
+.achievement.locked .achievement-img {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.achievement.locked .achievement-name {
+  color: var(--muted);
+}
+
+.achievement-desc {
+  font-size: 12px;
+  margin: 2px 0;
+}
+
+a.achievement:hover {
+  background: var(--surface);
+}
+
+.tracker-note {
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .game-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .game-hero-cover {
+    width: 100%;
+  }
+
+  .library-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .library-grid .cover {
+    height: 80px;
+  }
+
+  .library-grid .progress {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+}

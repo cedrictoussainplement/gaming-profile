@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["./**/*.ts", "../src/data/profile.ts", "../src/lib/stats.ts"]
+  "include": ["./**/*.ts", "../src/data/profile.ts", "../src/lib/stats.ts", "../src/lib/library.ts"]
 }

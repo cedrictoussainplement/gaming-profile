@@ -30,4 +30,6 @@ export interface Stats {
   topGames: GameStat[];
   /** Minutes jouées par semaine (lundi), des plus anciennes aux plus récentes. */
   weekly: { weekStart: string; minutes: number }[];
+  /** Résumé de la bibliothèque (détail : GET /api/library). */
+  library: { owned: number; achievements: number; trophies: number; platinums: number };
 }

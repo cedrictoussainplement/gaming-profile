@@ -11,6 +11,8 @@ Page profil gaming de **reask** : tous les comptes (Steam, PlayStation, Epic, Ri
   - `POST /api/playnite` : reçoit les heures envoyées par Playnite (EA, Epic, Ubisoft, Riot, Battle.net, jeux locaux). Protégé par la clé `INGEST_KEY`.
   - `POST /api/sync` : lance la synchro Steam + PSN tout de suite (même clé).
   - `GET /api/tarkov` / `POST /api/tarkov?mode=…` : profils Escape from Tarkov, voir plus bas.
+  - `GET /api/library` : la bibliothèque complète (page `/bibliotheque`) ; `GET /api/game?id=…` : la fiche d'un jeu (page `/jeu?id=…`).
+  - Cron toutes les 10 minutes : télécharge le détail des succès Steam et trophées PSN par petits lots (voir plus bas). `POST /api/sync?trophies=1` lance un lot à la main.
 - **Base D1** ([`worker/migrations`](worker/migrations)) : `accounts`, `games`, `game_aliases`, `playtime_snapshots` (historique, une ligne seulement quand les heures changent) et `sync_runs` (journal des synchros).
 - Les jeux sont fusionnés entre comptes et plateformes par nom normalisé (« Battlefield™ 2042 (PS5) » = « Battlefield 2042 »). Fusion manuelle possible, voir plus bas.
 - Aucun secret dans le dépôt : la clé Steam, les NPSSO PlayStation et `INGEST_KEY` sont des secrets Cloudflare.
@@ -66,7 +68,7 @@ Un NPSSO expire au bout de deux mois environ. Quand la synchro PSN échoue (la d
 
 ## Playnite
 
-Le dossier [`playnite/ProfilGamer`](playnite/ProfilGamer) est une extension script Playnite. Elle envoie les heures au démarrage de Playnite, après chaque partie, et via le menu *Extensions → Profil gamer → Envoyer mes heures au profil*.
+Le dossier [`playnite/ProfilGamer`](playnite/ProfilGamer) est une extension script Playnite. Elle envoie toute la bibliothèque (installée ou non) et les heures au démarrage de Playnite, après chaque partie, et via le menu *Extensions → Profil gamer → Envoyer mes heures au profil*.
 
 1. Copie le dossier `ProfilGamer` dans `%AppData%\Playnite\Extensions\` (ou `Extensions\` à côté de `Playnite.DesktopApp.exe` en version portable).
 2. Dans ce dossier, copie `config.example.json` en `config.json` et remplis l'URL du Worker et la valeur de `INGEST_KEY`.
@@ -102,6 +104,13 @@ Pas de récupération automatique : tarkov.dev lit les profils sur `player.tarko
 2. Ouvrir `/import-tarkov` sur le site, coller `INGEST_KEY`, mettre chaque fichier dans la bonne case, Importer.
 
 Le Worker résume le profil (table `tarkov_profiles`, JSON d'origine gardé), prend les noms français des succès, compétences et niveaux sur l'API publique `api.tarkov.dev`, et ajoute le temps de jeu du mode aux heures du profil. Seul le compte 12491174 est accepté. Refaire l'import pour rafraîchir.
+
+## Bibliothèque, succès et trophées
+
+- **Jeux possédés** : Steam (`GetOwnedGames`, jeux jamais lancés compris), PlayStation (jeux joués, jeux achetés via `getPurchasedGames`, jeux à trophées), Playnite (toute la bibliothèque, jeux cachés dans Playnite exclus). Table `library`.
+- **Progression** : la synchro de nuit note l'état de chaque jeu dans `trophy_sets` (PSN donne le résumé par type de trophée en un appel ; Steam non).
+- **Détail** (noms en français, icônes, rareté) : 3 appels par jeu Steam, 2 par jeu PSN. Le cron des 10 minutes en traite au plus 40 appels par passage (limite d'un Worker gratuit : 50), jeux jamais chargés d'abord. Un jeu n'est rechargé que si son temps de jeu (Steam) ou ses trophées (PSN) ont bougé ; après une erreur, il est réessayé 20 h plus tard. Table `trophies`.
+- Les trophées PSN arrivent sous un alias `psn-trophy` rattaché au jeu par son nom : la fusion manuelle plus haut s'applique aussi.
 
 ## Pas encore synchronisé
 

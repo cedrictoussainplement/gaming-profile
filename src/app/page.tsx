@@ -1,21 +1,20 @@
 import {
-  ChartColumn,
+  ArrowRight,
   Clock,
   Crosshair,
   ExternalLink,
   Gamepad2,
-  House,
   Layers,
+  Library,
   Link2,
   Monitor,
-  Radio,
   Smartphone,
   Trophy,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import { profile, type Account, type Platform, type SyncSource } from "@/data/profile";
-import { AccountHours, PlaytimeSection, StatsProvider, TotalHint, TotalHours } from "./live";
+import { AccountHours, LibraryCount, LibraryHint, PlaytimeSection, StatsProvider, TotalHint, TotalHours, TrophyCount, TrophyHint } from "./live";
+import { Sidebar } from "./sidebar";
 import { TarkovSection } from "./tarkov";
 
 const syncLabel: Record<SyncSource, string> = {
@@ -89,15 +88,6 @@ function PlatformCard({ platform }: { platform: Platform }) {
   );
 }
 
-const nav = [
-  { href: "#accueil", label: "Accueil", icon: House },
-  { href: "#temps", label: "Temps de jeu", icon: Clock },
-  { href: "#plateformes", label: "Plateformes", icon: Layers },
-  { href: "#tarkov", label: "Tarkov", icon: Crosshair },
-  { href: "#trackers", label: "Stats par jeu", icon: ChartColumn },
-  { href: "#communaute", label: "Communauté", icon: Users },
-];
-
 export default function Home() {
   const accounts = profile.platforms.flatMap((p) => p.accounts);
   const smurfs = accounts.filter((a) => a.role === "smurf").length;
@@ -111,22 +101,7 @@ export default function Home() {
   return (
     <StatsProvider>
       <div className="shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <span className="avatar">{profile.gamertag[0].toUpperCase()}</span>
-            <span className="brand-name">{profile.gamertag}</span>
-          </div>
-          <div className="nav-title">Explorer</div>
-          <nav>
-            {nav.map(({ href, label, icon: Icon }) => (
-              <a key={href} href={href} className="nav-item">
-                <Icon size={16} strokeWidth={1.8} />
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-foot">Heures mises à jour chaque nuit</div>
-        </aside>
+        <Sidebar />
 
         <main className="main">
           <header id="accueil" className="hero">
@@ -142,13 +117,16 @@ export default function Home() {
             <StatCard icon={Layers} label="Plateformes" value={String(profile.platforms.length)} hint="PC, PS5 et mobile" />
             <StatCard icon={Gamepad2} label="Comptes" value={String(accounts.length)} hint={`dont ${smurfs} smurfs`} />
             <StatCard icon={Crosshair} label="Jeux suivis" value={String(games.size)} hint={`${profile.trackers.length} trackers`} />
-            <StatCard icon={Trophy} label="Genre préféré" value="Shooter" hint="FPS et battle royale" />
-            <StatCard icon={Radio} label="Stream" value="Twitch" hint="reask0ner" />
+            <StatCard icon={Library} label="Bibliothèque" value={<LibraryCount />} hint={<LibraryHint />} />
+            <StatCard icon={Trophy} label="Succès et trophées" value={<TrophyCount />} hint={<TrophyHint />} />
           </section>
 
           <section id="temps">
             <h2>Temps de jeu</h2>
             <PlaytimeSection />
+            <a className="see-all" href="/bibliotheque">
+              Voir toute la bibliothèque <ArrowRight size={14} />
+            </a>
           </section>
 
           <section id="plateformes">

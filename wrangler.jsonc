@@ -11,8 +11,8 @@
     "not_found_handling": "404-page",
     "run_worker_first": ["/api/*"]
   },
-  // Tous les jours à 4 h UTC.
-  "triggers": { "crons": ["0 4 * * *"] },
+  // Tous les jours à 4 h UTC : heures et bibliothèque. Toutes les 10 min : un lot de succès / trophées.
+  "triggers": { "crons": ["0 4 * * *", "*/10 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",
