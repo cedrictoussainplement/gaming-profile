@@ -4,7 +4,7 @@
 
 import { profile } from "../src/data/profile";
 import type { TrackerMode, TrackerState, TrackerStat, TrackerSummary, TrackersResponse } from "../src/lib/trackers";
-import { fetchApex, fetchBattlefield, fetchClash, fetchCs2, fetchFortnite, fetchSiege, fetchValorant, type Fetched } from "./sources/trackers";
+import { fetchApex, fetchBattlefield, fetchClash, fetchCs2, fetchFortnite, fetchSiege, fetchValorant, NoStatsError, type Fetched } from "./sources/trackers";
 
 interface TrackerEnv {
   DB: D1Database;
@@ -109,10 +109,11 @@ export async function syncTrackers(env: TrackerEnv, only?: string): Promise<Trac
         return { id, ok: true };
       } catch (e) {
         const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
-        // On garde les derniers chiffres valides, seule l'erreur est notée.
+        // On garde les derniers chiffres valides, seule l'erreur est notée (sauf si la source dit n'avoir aucune stat).
         await env.DB.prepare(
           "INSERT INTO tracker_stats (tracker_id, source, error, attempted_at) VALUES (?, ?, ?, ?) " +
-            "ON CONFLICT (tracker_id) DO UPDATE SET error = excluded.error, attempted_at = excluded.attempted_at",
+            "ON CONFLICT (tracker_id) DO UPDATE SET error = excluded.error, attempted_at = excluded.attempted_at" +
+            (e instanceof NoStatsError ? ", summary = NULL, updated_at = NULL" : ""),
         )
           .bind(id, src.source, error, now)
           .run();

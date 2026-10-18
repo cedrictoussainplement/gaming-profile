@@ -13,6 +13,9 @@ export interface Fetched {
 
 type Obj = Record<string, any>;
 
+/** La source répond mais n'a rien pour ce joueur : les anciens chiffres sont effacés. */
+export class NoStatsError extends Error {}
+
 async function getJson(label: string, url: string, headers: HeadersInit = {}): Promise<Obj> {
   let res: Response;
   try {
@@ -50,7 +53,7 @@ export async function fetchBattlefield(game: BfGame, name: string, platform = "p
   if (!d.userName && d.kills === undefined) throw new Error(`gametools : ${name} introuvable sur ${bfGames[game]}`);
   // Profil privé ou jeu jamais lancé sur ce compte : gametools ne renvoie que la liste des armes, sans totaux.
   if (d.kills === undefined || (!Number(d.kills) && !Number(d.secondsPlayed ?? d.matchesPlayed)))
-    throw new Error(`gametools : aucune stat publique pour ${name} sur ${bfGames[game]} (profil EA privé ou jamais joué sur ce compte)`);
+    throw new NoStatsError(`gametools : aucune stat publique pour ${name} sur ${bfGames[game]} (profil EA privé ou jamais joué sur ce compte)`);
   const seconds = d.secondsPlayed ?? d.timePlayedSeconds;
   const rank = d.rankName ?? (d.rank !== undefined && d.rank !== null ? `Rang ${num(d.rank)}` : undefined);
   const classes: Obj[] = Array.isArray(d.classes) ? d.classes : [];
