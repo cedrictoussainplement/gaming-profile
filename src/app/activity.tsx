@@ -32,6 +32,51 @@ function RoleBadge({ accountId }: { accountId: string }) {
   return role === "smurf" ? <span className="badge role-smurf">Smurf</span> : null;
 }
 
+const monthLabel = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString("fr-FR", { month: "short" });
+
+function Bars({
+  months,
+  pick,
+  label,
+  format,
+}: {
+  months: Activity["months"];
+  pick: (m: Activity["months"][number]) => number;
+  label: string;
+  format: (n: number) => string;
+}) {
+  const max = Math.max(1, ...months.map(pick));
+  const total = months.reduce((n, m) => n + pick(m), 0);
+  return (
+    <div className="card month-chart">
+      <div className="month-chart-head">
+        <span className="stat-label">{label}</span>
+        <span className="stat-hint">{format(total)} sur 12 mois</span>
+      </div>
+      <div className="month-bars">
+        {months.map((m) => (
+          <div key={m.month} className="month-bar" title={`${monthLabel(m.month)} : ${format(pick(m))}`}>
+            <span className="month-track">
+              <span className="month-fill" style={{ height: `${(pick(m) / max) * 100}%` }} />
+            </span>
+            <span className="month-name">{monthLabel(m.month)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Heures et succès par mois, main et smurf réunis. */
+export function MonthlyStats({ months }: { months: Activity["months"] }) {
+  return (
+    <div className="grid month-charts">
+      <Bars months={months} pick={(m) => m.minutes} label="Heures par mois" format={(n) => formatSession(n)} />
+      <Bars months={months} pick={(m) => m.unlocks} label="Succès et trophées par mois" format={(n) => n.toLocaleString("fr-FR")} />
+    </div>
+  );
+}
+
 export function ActivityFeed() {
   const [activity, setActivity] = useState<Activity | null | undefined>(undefined);
   const [all, setAll] = useState(false);
@@ -44,13 +89,21 @@ export function ActivityFeed() {
   }, []);
 
   if (activity === undefined) return <p className="empty">Chargement…</p>;
-  if (!activity?.days.length) {
-    return <p className="empty">Rien pour l&apos;instant : l&apos;activité apparaît dès la deuxième synchro de nuit et à chaque nouveau succès.</p>;
+  if (!activity) return <p className="empty">Activité indisponible pour le moment.</p>;
+  const charts = <MonthlyStats months={activity.months} />;
+  if (!activity.days.length) {
+    return (
+      <div className="activity">
+        {charts}
+        <p className="empty">Rien pour l&apos;instant : l&apos;activité apparaît dès la deuxième synchro de nuit et à chaque nouveau succès.</p>
+      </div>
+    );
   }
   const days = all ? activity.days : activity.days.slice(0, SHOWN);
 
   return (
     <div className="activity">
+      {charts}
       {days.map((d) => (
         <div key={d.date} className="card activity-day">
           <div className="activity-date">{formatDay(d.date)}</div>

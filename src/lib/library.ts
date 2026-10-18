@@ -99,6 +99,8 @@ export const realDate = (iso: string | null) => (iso && iso >= "2000" ? iso : nu
 
 /** GET /api/activity : derniers succès et sessions, du plus récent au plus ancien. */
 export interface Activity {
+  /** 12 derniers mois, du plus ancien au plus récent (main et smurf réunis). */
+  months: { month: string; minutes: number; unlocks: number }[];
   days: {
     /** AAAA-MM-JJ */
     date: string;

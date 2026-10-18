@@ -1322,3 +1322,50 @@ button.see-all {
   font: inherit;
   justify-self: start;
 }
+
+/* Stats mensuelles */
+.month-charts {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.month-chart {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.month-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.month-bars {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  height: 120px;
+  align-items: end;
+}
+.month-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  gap: 4px;
+}
+.month-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.month-fill {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: #8b7bd8;
+}
+.month-name {
+  font-size: 10px;
+  color: var(--muted);
+}

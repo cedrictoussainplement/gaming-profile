@@ -177,6 +177,13 @@ export function GameView() {
   const isTarkov = /tarkov/i.test(game.name);
   const lastPlayed = realDate(game.lastPlayed);
   const earned = game.sets.reduce((n, s) => n + (s.earned ?? 0), 0);
+  // Historique : dates réelles de déblocage, main et smurf réunis.
+  const unlockDates = game.sets
+    .flatMap((s) => s.trophies.map((t) => realDate(t.earnedAt)))
+    .filter((d): d is string => d !== null)
+    .sort();
+  const firstUnlock = unlockDates[0];
+  const lastUnlock = unlockDates[unlockDates.length - 1];
 
   return (
     <>
@@ -209,6 +216,20 @@ export function GameView() {
           <div className="stat-value">{lastPlayed ? new Date(lastPlayed).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—"}</div>
           <div className="stat-hint">{lastPlayed ? new Date(lastPlayed).getFullYear() : "jamais lancé ou date inconnue"}</div>
         </div>
+        {firstUnlock && (
+          <div className="card tile">
+            <div className="stat-label">Premier succès</div>
+            <div className="stat-value">{new Date(firstUnlock).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</div>
+            <div className="stat-hint">{new Date(firstUnlock).getFullYear()}</div>
+          </div>
+        )}
+        {lastUnlock && lastUnlock !== firstUnlock && (
+          <div className="card tile">
+            <div className="stat-label">Dernier succès</div>
+            <div className="stat-value">{new Date(lastUnlock).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</div>
+            <div className="stat-hint">{new Date(lastUnlock).getFullYear()}</div>
+          </div>
+        )}
         <div className="card tile">
           <div className="stat-label">Succès et trophées</div>
           <div className="stat-value">{game.sets.length ? fmt(earned) : "—"}</div>
