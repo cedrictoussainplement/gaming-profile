@@ -113,6 +113,27 @@ Le Worker résume le profil (table `tarkov_profiles`, JSON d'origine gardé), pr
 - **Détail** (noms en français, icônes, rareté) : 3 appels par jeu Steam, 2 par jeu PSN. Le cron des 10 minutes en traite au plus 40 appels par passage (limite d'un Worker gratuit : 50), jeux jamais chargés d'abord. Un jeu n'est rechargé que si son temps de jeu (Steam) ou ses trophées (PSN) ont bougé ; après une erreur, il est réessayé 20 h plus tard. Table `trophies`.
 - Les trophées PSN arrivent sous un alias `psn-trophy` rattaché au jeu par son nom : la fusion manuelle plus haut s'applique aussi.
 
+## Stats des trackers
+
+Chaque tracker de [`src/data/profile.ts`](src/data/profile.ts) affiche ses stats sur la fiche du jeu (`/jeu?id=…`) et deux chiffres clés sur l'accueil. Les sources sont déclarées dans [`worker/trackers.ts`](worker/trackers.ts), une fonction par API dans [`worker/sources/trackers.ts`](worker/sources/trackers.ts).
+
+| Jeu | Source | Secret à ajouter |
+|---|---|---|
+| Battlefield 2042, V, 4 | [gametools.network](https://api.gametools.network/docs) | aucun |
+| Counter-Strike 2 | Steam (`GetUserStatsForGame`) + [Leetify](https://leetify.com) | aucun (`STEAM_API_KEY` déjà là) |
+| Apex Legends (3 comptes) | [apexlegendsapi.com](https://apexlegendsapi.com) | `APEX_API_KEY` |
+| Fortnite (2 comptes) | [fortnite-api.com](https://dash.fortnite-api.com) | `FORTNITE_API_KEY` |
+| Valorant | [HenrikDev](https://docs.henrikdev.xyz) | `HENRIK_API_KEY` |
+| Clash of Clans | API Supercell via le relais [RoyaleAPI](https://docs.royaleapi.com/proxy.html) | `COC_API_KEY` (clé créée pour l'IP `45.79.218.79`) |
+| Rainbow Six Siege | [R6Data](https://r6.arenyze.com/api-docs) | `R6DATA_API_KEY` (facultatif) |
+| Off the Grid, WARDOGS | pas d'API publique : saisie à la main sur `/import-stats` | — |
+
+- Synchro toutes les 3 h (cron `30 */3 * * *`), ou à la première visite si la dernière date de plus de 3 h. Une quinzaine d'appels sortants au total.
+- Un tracker sans son secret affiche « en attente de la clé » ; une synchro en échec garde les derniers chiffres et note l'erreur.
+- `GET /api/trackers` : stats de tous les trackers ; `?raw=<id>` : réponse brute de l'API, pour corriger un résumé.
+- `POST /api/trackers/sync` (clé `INGEST_KEY`, `?id=` pour un seul) ; `POST /api/trackers/import?id=…` avec `{ "headline": "...", "stats": [{ "label": "...", "value": "..." }] }`.
+- Table `tracker_stats` (dernier résumé, réponse brute, dernière erreur).
+
 ## Pas encore synchronisé
 
-Clash of Clans et Game Center restent des liens. WARDOGS est un lien vers wardogs.tools.
+Game Center reste un lien.

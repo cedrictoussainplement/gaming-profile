@@ -15,6 +15,7 @@ import {
 import { profile, type Account, type Platform, type SyncSource } from "@/data/profile";
 import { AccountHours, LibraryCount, LibraryHint, PlaytimeSection, StatsProvider, TotalHint, TotalHours, TrophyCount, TrophyHint } from "./live";
 import { Sidebar } from "./sidebar";
+import { TrackerMini, TrackersProvider } from "./tracker-stats";
 import { TarkovSection } from "./tarkov";
 
 const syncLabel: Record<SyncSource, string> = {
@@ -150,6 +151,7 @@ export default function Home() {
 
           <section id="trackers">
             <h2>Stats par jeu</h2>
+            <TrackersProvider>
             <div className="grid games">
               {profile.trackers.map((t) => (
                 <a key={t.id} className="card game" href={t.url} target="_blank" rel="noopener noreferrer">
@@ -163,6 +165,7 @@ export default function Home() {
                       <span className={`badge role-${t.role}`}>{t.role === "main" ? "Main" : "Smurf"}</span>
                     </div>
                     <div className="game-account">{t.account}</div>
+                    <TrackerMini id={t.id} />
                     <div className="game-cta">
                       Voir les stats <ExternalLink size={14} />
                     </div>
@@ -170,6 +173,7 @@ export default function Home() {
                 </a>
               ))}
             </div>
+            </TrackersProvider>
           </section>
 
           <section id="communaute">
