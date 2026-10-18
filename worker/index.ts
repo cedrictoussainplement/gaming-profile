@@ -2,12 +2,16 @@
 //   GET  /api/stats     heures agrégées, public
 //   POST /api/playnite  import des heures envoyées par Playnite (clé INGEST_KEY)
 //   POST /api/sync      lance la synchro Steam + PSN tout de suite (clé INGEST_KEY)
+//   GET  /api/tarkov    profils Tarkov importés, public
+//   POST /api/tarkov    import d'un profil JSON tarkov.dev, ?mode=regular|pve|pvp-season|arena (clé INGEST_KEY)
 
 import { psnAccounts, steamAccounts } from "./accounts";
 import { logSync, readStats, recordPlaytime, upsertAccounts, type PlaytimeItem } from "./db";
 import { parsePlaynite } from "./sources/playnite";
 import { fetchPsn } from "./sources/psn";
 import { fetchSteam } from "./sources/steam";
+import { guessMode, isMode, summarizeTarkov } from "./sources/tarkov";
+import { tarkovAccountId, type TarkovProfile, type TarkovResponse } from "../src/lib/tarkov";
 
 export interface Env {
   DB: D1Database;
@@ -77,9 +81,55 @@ async function authorized(request: Request, env: Env) {
   return crypto.subtle.timingSafeEqual(a, b);
 }
 
+async function importTarkov(request: Request, env: Env, url: URL): Promise<Response> {
+  const text = await request.text();
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return json({ error: "JSON invalide" }, 400);
+  }
+  const mode = url.searchParams.get("mode") ?? guessMode(raw);
+  if (!isMode(mode)) return json({ error: "Mode manquant : regular, pve, pvp-season ou arena" }, 400);
+
+  let summary;
+  try {
+    summary = await summarizeTarkov(raw, mode);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+  }
+  const { profile, warning } = summary;
+  await env.DB.prepare(
+    "INSERT INTO tarkov_profiles (mode, summary, raw, imported_at) VALUES (?, ?, ?, ?) " +
+      "ON CONFLICT (mode) DO UPDATE SET summary = excluded.summary, raw = excluded.raw, imported_at = excluded.imported_at",
+  )
+    .bind(mode, JSON.stringify(profile), text, profile.importedAt)
+    .run();
+
+  // Le temps de jeu du mode rejoint les heures du profil comme n'importe quelle source.
+  await upsertAccounts(env.DB);
+  const name = mode === "arena" ? "Escape from Tarkov: Arena" : "Escape from Tarkov";
+  const hours = await syncAccount(env, tarkovAccountId[mode], "tarkov", async () => [
+    { externalId: mode === "arena" ? "arena" : "eft", name, minutes: Math.round(profile.playSeconds / 60), lastPlayed: profile.lastActive },
+  ]);
+  return json({ mode, nickname: profile.nickname, level: profile.level, warning, hours });
+}
+
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/api/stats" && request.method === "GET") {
     return json(await readStats(env.DB), 200, { "cache-control": "public, max-age=300" });
+  }
+
+  if (url.pathname === "/api/tarkov" && request.method === "GET") {
+    const { results } = await env.DB.prepare("SELECT summary FROM tarkov_profiles").all<{ summary: string }>();
+    const body: TarkovResponse = { profiles: results.map((r) => JSON.parse(r.summary) as TarkovProfile) };
+    return json(body, 200, { "cache-control": "public, max-age=300" });
+  }
+
+  if (url.pathname === "/api/tarkov") {
+    if (request.method !== "POST") return json({ error: "POST attendu" }, 405);
+    if (!(await authorized(request, env))) return json({ error: "Clé invalide" }, 401);
+    return importTarkov(request, env, url);
   }
 
   if (url.pathname === "/api/playnite" || url.pathname === "/api/sync") {

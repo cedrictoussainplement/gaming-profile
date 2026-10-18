@@ -10,6 +10,7 @@ Page profil gaming de **reask** : tous les comptes (Steam, PlayStation, Epic, Ri
   - Cron chaque nuit à 4 h UTC : Steam Web API (`GetOwnedGames`) pour les 2 comptes Steam, PSN (`psn-api`, `getUserPlayedGames`) pour les 2 comptes PlayStation.
   - `POST /api/playnite` : reçoit les heures envoyées par Playnite (EA, Epic, Ubisoft, Riot, Battle.net, jeux locaux). Protégé par la clé `INGEST_KEY`.
   - `POST /api/sync` : lance la synchro Steam + PSN tout de suite (même clé).
+  - `GET /api/tarkov` / `POST /api/tarkov?mode=…` : profils Escape from Tarkov, voir plus bas.
 - **Base D1** ([`worker/migrations`](worker/migrations)) : `accounts`, `games`, `game_aliases`, `playtime_snapshots` (historique, une ligne seulement quand les heures changent) et `sync_runs` (journal des synchros).
 - Les jeux sont fusionnés entre comptes et plateformes par nom normalisé (« Battlefield™ 2042 (PS5) » = « Battlefield 2042 »). Fusion manuelle possible, voir plus bas.
 - Aucun secret dans le dépôt : la clé Steam, les NPSSO PlayStation et `INGEST_KEY` sont des secrets Cloudflare.
@@ -91,6 +92,17 @@ UPDATE games SET hidden = 1 WHERE id = 42;
 UPDATE games SET name = 'Rainbow Six Siege' WHERE id = 12;
 ```
 
+## Escape from Tarkov
+
+La section Tarkov affiche niveau, raids, survie, K/D, compétences, armes maîtrisées, succès et stats Arena, sans renvoyer vers tarkov.dev.
+
+Pas de récupération automatique : tarkov.dev lit les profils sur `player.tarkov.dev`, protégé par Cloudflare Turnstile (jeton délivré seulement à un navigateur sur tarkov.dev). On importe donc le JSON que tarkov.dev propose au téléchargement :
+
+1. Sur tarkov.dev, ouvrir le profil dans chaque mode (PvP, PvE, PvP saison, Arena) et cliquer sur le bouton de téléchargement à côté du pseudo.
+2. Ouvrir `/import-tarkov` sur le site, coller `INGEST_KEY`, mettre chaque fichier dans la bonne case, Importer.
+
+Le Worker résume le profil (table `tarkov_profiles`, JSON d'origine gardé), prend les noms français des succès, compétences et niveaux sur l'API publique `api.tarkov.dev`, et ajoute le temps de jeu du mode aux heures du profil. Seul le compte 12491174 est accepté. Refaire l'import pour rafraîchir.
+
 ## Pas encore synchronisé
 
-Tarkov (import JSON prévu plus tard), Clash of Clans et Game Center restent des liens.
+Clash of Clans et Game Center restent des liens. WARDOGS est un lien vers wardogs.tools.

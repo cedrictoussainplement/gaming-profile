@@ -158,10 +158,10 @@ export const profile: Profile = {
       group: "pc",
       sync: "import",
       accounts: [
-        { id: "tarkov-regular", handle: "reask0ner", role: "main", label: "PvP classique", url: "https://tarkov.dev/players/regular/12491174" },
-        { id: "tarkov-pve", handle: "reask0ner", role: "main", label: "PvE", url: "https://tarkov.dev/players/pve/12491174" },
-        { id: "tarkov-season", handle: "reask0ner", role: "main", label: "PvP saison", url: "https://tarkov.dev/players/pvp-season/12491174" },
-        { id: "tarkov-arena", handle: "reask0ner", role: "main", label: "Arena", url: "https://tarkov.dev/players/arena/12491174" },
+        { id: "tarkov-regular", handle: "reask0ner", role: "main", label: "PvP classique", url: "#tarkov" },
+        { id: "tarkov-pve", handle: "reask0ner", role: "main", label: "PvE", url: "#tarkov" },
+        { id: "tarkov-season", handle: "reask0ner", role: "main", label: "PvP saison", url: "#tarkov" },
+        { id: "tarkov-arena", handle: "reask0ner", role: "main", label: "Arena", url: "#tarkov" },
       ],
     },
     {
@@ -193,6 +193,7 @@ export const profile: Profile = {
     { id: "fortnite", game: "Fortnite", account: "ogreask", platform: "PC · PS5", role: "main", url: "https://fortnitetracker.com/profile/all/ogreask", colors: ["#9d4dbb", "#2b6fe0"] },
     { id: "fortnite-smurf", game: "Fortnite", account: "reask_oner", platform: "PC · PS5", role: "smurf", url: "https://fortnitetracker.com/profile/all/reask_oner", colors: ["#9d4dbb", "#2b6fe0"] },
     { id: "otg", game: "Off the Grid", account: "fr__eask_", platform: "PS5", role: "main", url: "https://tracker.gg/off-the-grid/profile/psn/fr__eask_/overview?gamemode=extraction-royale-trios", colors: ["#16a37f", "#0b2a2a"] },
+    { id: "wardogs", game: "WARDOGS", account: "reask#1160", platform: "PC", role: "main", url: "https://wardogs.tools/player/68d18de7-dc5d-4613-b91b-dcb8fb512fe3", colors: ["#7a8b3c", "#1d2412"] },
     { id: "valorant", game: "Valorant", account: "reask#2736", platform: "PC", role: "main", url: "https://tracker.gg/valorant/profile/riot/reask%232736", colors: ["#ff4655", "#0f1923"] },
   ],
   community: [

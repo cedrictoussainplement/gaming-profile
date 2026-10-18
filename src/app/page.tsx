@@ -16,11 +16,12 @@ import {
 } from "lucide-react";
 import { profile, type Account, type Platform, type SyncSource } from "@/data/profile";
 import { AccountHours, PlaytimeSection, StatsProvider, TotalHint, TotalHours } from "./live";
+import { TarkovSection } from "./tarkov";
 
 const syncLabel: Record<SyncSource, string> = {
   api: "Heures auto",
   playnite: "Heures via Playnite",
-  import: "Import manuel (bientôt)",
+  import: "Stats via import",
   none: "Lien seulement",
 };
 
@@ -46,17 +47,18 @@ function StatCard({ icon: Icon, label, value, hint }: { icon: LucideIcon; label:
 }
 
 function AccountRow({ account }: { account: Account }) {
+  const external = account.url && !account.url.startsWith("#");
   const content = (
     <>
       <span className="account-handle">{account.handle}</span>
       {account.label && <span className="account-label">{account.label}</span>}
       <AccountHours id={account.id} />
       <span className={`badge role-${account.role}`}>{account.role === "main" ? "Main" : "Smurf"}</span>
-      {account.url && <ExternalLink size={14} className="account-ext" />}
+      {external && <ExternalLink size={14} className="account-ext" />}
     </>
   );
   return account.url ? (
-    <a className="account" href={account.url} target="_blank" rel="noopener noreferrer">
+    <a className="account" href={account.url} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
       {content}
     </a>
   ) : (
@@ -91,6 +93,7 @@ const nav = [
   { href: "#accueil", label: "Accueil", icon: House },
   { href: "#temps", label: "Temps de jeu", icon: Clock },
   { href: "#plateformes", label: "Plateformes", icon: Layers },
+  { href: "#tarkov", label: "Tarkov", icon: Crosshair },
   { href: "#trackers", label: "Stats par jeu", icon: ChartColumn },
   { href: "#communaute", label: "Communauté", icon: Users },
 ];
@@ -160,6 +163,11 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </section>
+
+          <section id="tarkov">
+            <h2>Escape from Tarkov</h2>
+            <TarkovSection />
           </section>
 
           <section id="trackers">
