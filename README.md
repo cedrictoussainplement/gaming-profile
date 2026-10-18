@@ -1,6 +1,6 @@
 # gaming-profile
 
-Page profil gaming de **reask** : tous les comptes (Steam, PlayStation, Epic, Riot…), le temps de jeu, les trackers de stats par jeu et les liens communauté, au même endroit.
+Page profil gaming de **reask** (https://gaming-profile.cedric-toussaint8.workers.dev) : tous les comptes (Steam, PlayStation, Epic, Riot…), le temps de jeu, les trackers de stats par jeu et les liens communauté, au même endroit.
 
 ## Comment c'est fait
 
