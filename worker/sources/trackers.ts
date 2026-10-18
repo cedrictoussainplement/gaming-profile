@@ -48,6 +48,9 @@ export async function fetchBattlefield(game: BfGame, name: string, platform = "p
   const params = new URLSearchParams({ name, platform, format_values: "false", skip_battlelog: "false" });
   const d = await getJson("gametools", `https://api.gametools.network/${game}/stats/?${params}`);
   if (!d.userName && d.kills === undefined) throw new Error(`gametools : ${name} introuvable sur ${bfGames[game]}`);
+  // Profil privé ou jeu jamais lancé sur ce compte : gametools ne renvoie que la liste des armes, sans totaux.
+  if (d.kills === undefined || (!Number(d.kills) && !Number(d.secondsPlayed ?? d.matchesPlayed)))
+    throw new Error(`gametools : aucune stat publique pour ${name} sur ${bfGames[game]} (profil EA privé ou jamais joué sur ce compte)`);
   const seconds = d.secondsPlayed ?? d.timePlayedSeconds;
   const rank = d.rankName ?? (d.rank !== undefined && d.rank !== null ? `Rang ${num(d.rank)}` : undefined);
   const classes: Obj[] = Array.isArray(d.classes) ? d.classes : [];
