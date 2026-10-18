@@ -10,6 +10,7 @@ Page profil gaming de **reask** (https://gaming-profile.cedric-toussaint8.worker
   - Cron chaque nuit à 4 h UTC : Steam Web API (`GetOwnedGames`) pour les 2 comptes Steam, PSN (`psn-api`, `getUserPlayedGames`) pour les 2 comptes PlayStation.
   - `POST /api/playnite` : reçoit les heures envoyées par Playnite (EA, Epic, Ubisoft, Riot, Battle.net, jeux locaux). Protégé par la clé `INGEST_KEY`.
   - `POST /api/sync` : lance la synchro Steam + PSN tout de suite (même clé).
+  - `GET /api/health` : diagnostic public, dit quels secrets le Worker voit (jamais leur valeur, seulement une empreinte de `INGEST_KEY`) et la dernière synchro de chaque compte.
   - `GET /api/tarkov` / `POST /api/tarkov?mode=…` : profils Escape from Tarkov, voir plus bas.
   - `GET /api/library` : la bibliothèque complète (page `/bibliotheque`) ; `GET /api/game?id=…` : la fiche d'un jeu (page `/jeu?id=…`).
   - Cron toutes les 10 minutes : télécharge le détail des succès Steam et trophées PSN par petits lots (voir plus bas). `POST /api/sync?trophies=1` lance un lot à la main.
