@@ -22,6 +22,8 @@ export interface LibraryGame {
   achievements: { earned: number; total: number } | null;
   /** Platine PSN obtenu. */
   platinum: boolean;
+  /** Points de rareté gagnés sur ce jeu (voir worker/combined.ts). */
+  points: number;
 }
 
 export interface RareTrophy {
@@ -49,6 +51,8 @@ export interface Library {
     completed: number;
     /** Jeux dont le détail des succès est encore en cours de chargement. */
     pendingTrophies: number;
+    /** Score global : points de rareté, main et smurf réunis. */
+    points: number;
   };
   games: LibraryGame[];
   rarest: RareTrophy[];
@@ -93,6 +97,9 @@ export interface CombinedTrophy extends Trophy {
   /** Comptes qui l'ont débloqué, avec la date (earnedAt : la première). */
   earnedBy: { accountId: string; earnedAt: string }[];
 }
+
+/** Points d'un succès obtenu : même règle que POINTS_BY_GAME (worker/combined.ts). */
+export const pointsFor = (rarity: number | null) => (rarity === null ? 25 : Math.max(5, Math.round(100 - rarity)));
 
 /** Date valide pour l'affichage (Steam et PSN mettent 1970 quand ils n'ont pas la date). */
 export const realDate = (iso: string | null) => (iso && iso >= "2000" ? iso : null);
