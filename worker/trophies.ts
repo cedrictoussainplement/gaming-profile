@@ -10,6 +10,7 @@ import { psnAccounts, steamAccounts } from "./accounts";
 import { batchAll, ensureAliases, markOwned, queueTrophySets } from "./db";
 import type { Env } from "./index";
 import { fetchPsnTrophies, psnAuth, trophyTitleName, type PsnAuth } from "./sources/psn";
+import type { PlayniteAchievements } from "./sources/playnite";
 import { fetchSteamAchievements, resolveSteamId } from "./sources/steam";
 
 export interface FetchedTrophy {
@@ -63,7 +64,7 @@ export async function recordPsnTrophyTitles(db: D1Database, accountId: string, t
   return items.length;
 }
 
-async function saveTrophies(db: D1Database, accountId: string, aliasId: number, wanted: string, list: FetchedTrophy[]) {
+export async function saveTrophies(db: D1Database, accountId: string, aliasId: number, wanted: string, list: FetchedTrophy[]) {
   const upsert = db.prepare(
     "INSERT INTO trophies (account_id, alias_id, trophy_id, name, description, icon, grade, hidden, earned_at, rarity) " +
       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (account_id, alias_id, trophy_id) DO UPDATE SET " +
@@ -120,7 +121,7 @@ export async function syncTrophies(env: Env, budget = CALL_BUDGET): Promise<Trop
   const { results: jobs } = await env.DB.prepare(
     "SELECT ts.account_id, ts.alias_id, ts.platform, ts.wanted, ts.meta, al.external_id FROM trophy_sets ts " +
       "JOIN game_aliases al ON al.id = ts.alias_id " +
-      "WHERE ts.fetched IS NOT ts.wanted AND (ts.error IS NULL OR ts.attempted_at < ?) " +
+      "WHERE ts.fetched IS NOT ts.wanted AND ts.platform IN ('steam', 'psn') AND (ts.error IS NULL OR ts.attempted_at < ?) " +
       "ORDER BY ts.attempted_at IS NOT NULL, ts.attempted_at, ts.last_earned DESC LIMIT 30",
   )
     .bind(retryBefore)
@@ -159,7 +160,7 @@ export async function syncTrophies(env: Env, budget = CALL_BUDGET): Promise<Trop
         }
         calls += 3;
         await saveTrophies(env.DB, job.account_id, job.alias_id, job.wanted, await fetchSteamAchievements(key, steamid, job.external_id));
-      } else {
+      } else if (job.platform === "psn") {
         const account = psnAccounts.find((a) => a.id === job.account_id);
         const npsso = account ? env[account.npssoSecret] : undefined;
         if (typeof npsso !== "string" || !npsso) {
@@ -177,6 +178,9 @@ export async function syncTrophies(env: Env, budget = CALL_BUDGET): Promise<Trop
         calls += 2;
         const service = job.meta ? (JSON.parse(job.meta) as { service?: "trophy" | "trophy2" }).service : undefined;
         await saveTrophies(env.DB, job.account_id, job.alias_id, job.wanted, await fetchPsnTrophies(auth, job.external_id, service ?? "trophy2"));
+      } else {
+        // Succès envoyés par Playnite : rien à télécharger.
+        continue;
       }
       result.fetched++;
     } catch (e) {
@@ -192,7 +196,33 @@ export async function syncTrophies(env: Env, budget = CALL_BUDGET): Promise<Trop
     }
   }
 
-  const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM trophy_sets WHERE fetched IS NOT wanted").first<{ n: number }>();
+  const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM trophy_sets WHERE fetched IS NOT wanted AND platform IN ('steam', 'psn')").first<{
+    n: number;
+  }>();
   result.remaining = pending?.n ?? 0;
   return result;
+}
+
+/** Succès Epic, EA, Ubisoft… lus par Playnite : enregistrés tels quels, seulement s'ils ont changé. */
+export async function recordPlayniteAchievements(db: D1Database, accountId: string, platform: string, games: PlayniteAchievements[]) {
+  if (!games.length) return 0;
+  const known = await ensureAliases(db, "playnite", games);
+  const { results } = await db
+    .prepare("SELECT alias_id, fetched FROM trophy_sets WHERE account_id = ?")
+    .bind(accountId)
+    .all<{ alias_id: number; fetched: string | null }>();
+  const fetched = new Map(results.map((r) => [r.alias_id, r.fetched]));
+  let saved = 0;
+  for (const g of games) {
+    const aliasId = known.get(g.externalId);
+    if (!aliasId) continue;
+    const earned = g.list.filter((t) => t.earnedAt);
+    const last = earned.reduce((m, t) => (t.earnedAt! > m ? t.earnedAt! : m), "");
+    const signature = `${earned.length}|${g.list.length}|${last}`;
+    if (fetched.get(aliasId) === signature) continue;
+    await queueTrophySets(db, accountId, platform, [{ aliasId, wanted: signature }]);
+    await saveTrophies(db, accountId, aliasId, signature, g.list);
+    saved++;
+  }
+  return saved;
 }

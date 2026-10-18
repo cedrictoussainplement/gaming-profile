@@ -68,13 +68,13 @@ export async function readLibrary(db: D1Database): Promise<Library> {
     e.accountSet.add(r.account_id);
   }
 
-  let steamAchievements = 0;
+  let achievements = 0;
   let pendingTrophies = 0;
   const psnTrophies = zero();
   const completed = new Set<number>();
   for (const s of sets) {
     if (s.pending) pendingTrophies++;
-    if (s.platform === "steam") steamAchievements += s.earned ?? 0;
+    if (s.platform !== "psn") achievements += s.earned ?? 0;
     if (s.grades) for (const k of Object.keys(psnTrophies) as (keyof TrophyCounts)[]) psnTrophies[k] += s.grades.earned[k] ?? 0;
     const e = entry(s.gameId);
     if (!e) continue;
@@ -95,7 +95,7 @@ export async function readLibrary(db: D1Database): Promise<Library> {
       owned: list.length,
       played: list.filter((g) => g.minutes > 0).length,
       minutes,
-      steamAchievements,
+      achievements,
       psnTrophies,
       completed: completed.size,
       pendingTrophies,

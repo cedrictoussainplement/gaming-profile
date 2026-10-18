@@ -63,7 +63,7 @@ export function TrophyHint() {
   if (!stats?.library) return <>Steam et PlayStation</>;
   const { achievements, trophies, platinums } = stats.library;
   return (
-    <>{`${achievements.toLocaleString("fr-FR")} Steam · ${trophies.toLocaleString("fr-FR")} PSN · ${platinums} platine${platinums > 1 ? "s" : ""}`}</>
+    <>{`${achievements.toLocaleString("fr-FR")} PC · ${trophies.toLocaleString("fr-FR")} PSN · ${platinums} platine${platinums > 1 ? "s" : ""}`}</>
   );
 }
 

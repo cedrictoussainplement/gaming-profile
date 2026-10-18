@@ -93,7 +93,7 @@ function TrophySet({ set }: { set: GameDetail["sets"][number] }) {
     <div className="card trophy-set">
       <div className="trophy-set-head">
         <div>
-          <div className="platform-name">{set.platform === "psn" ? "Trophées PlayStation" : "Succès Steam"}</div>
+          <div className="platform-name">{set.platform === "psn" ? "Trophées PlayStation" : `Succès ${platformName(set.platform)}`}</div>
           <div className="platform-games">
             {multi ? `${set.accounts.length} comptes réunis` : (accountOf(set.accounts[0]?.accountId ?? "")?.handle ?? "")}
           </div>

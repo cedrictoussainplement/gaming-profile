@@ -41,8 +41,8 @@ export interface Library {
     owned: number;
     played: number;
     minutes: number;
-    /** Succès Steam débloqués, tous comptes. */
-    steamAchievements: number;
+    /** Succès débloqués hors PlayStation (Steam, Epic, EA…), main et smurf réunis. */
+    achievements: number;
     /** Trophées PSN obtenus par type, tous comptes. */
     psnTrophies: TrophyCounts;
     /** Jeux terminés à 100 % (au moins un compte). */

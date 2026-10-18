@@ -249,7 +249,7 @@ export async function readStats(db: D1Database): Promise<Stats> {
     platinums: 0,
   };
   for (const s of await readCombined(db)) {
-    if (s.platform === "steam") library.achievements += s.earned ?? 0;
+    if (s.platform !== "psn") library.achievements += s.earned ?? 0;
     else library.trophies += s.earned ?? 0;
     library.platinums += s.grades?.earned.platinum ?? 0;
   }
