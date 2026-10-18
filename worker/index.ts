@@ -12,13 +12,13 @@
 //   POST /api/trackers/sync          interroge toutes les sources tout de suite, ?id= pour une seule (clé INGEST_KEY)
 //   POST /api/trackers/import?id=    stats saisies à la main {headline, stats: [{label, value}]} (clé INGEST_KEY)
 
-import { psnAccounts, steamAccounts } from "./accounts";
+import { allAccounts, psnAccounts, steamAccounts } from "./accounts";
 import { logSync, readStats, recordPlaytime, upsertAccounts, type PlaytimeItem } from "./db";
 import { readGame, readLibrary } from "./library";
 import { parsePlaynite } from "./sources/playnite";
 import { fetchPsnPlayed, fetchPsnPurchased, fetchPsnTrophyTitles, psnAuth } from "./sources/psn";
 import { fetchSteam } from "./sources/steam";
-import { recordPsnTrophyTitles, syncTrophies } from "./trophies";
+import { recordPlayniteAchievements, recordPsnTrophyTitles, syncTrophies } from "./trophies";
 import { claimStaleSync, importTrackerStats, readTrackerRaw, readTrackers, syncTrackers, trackerSecrets } from "./trackers";
 import { guessMode, isMode, summarizeTarkov } from "./sources/tarkov";
 import { tarkovAccountId, type TarkovProfile, type TarkovResponse } from "../src/lib/tarkov";
@@ -43,6 +43,8 @@ interface SyncResult {
   owned?: number;
   changed?: number;
   trophyTitles?: number;
+  /** Jeux dont les succès Playnite ont changé. */
+  achievements?: number;
   warning?: string;
   error?: string;
 }
@@ -255,16 +257,23 @@ async function handleApi(request: Request, env: Env, url: URL, ctx: ExecutionCon
       return json({ results: await syncAll(env) });
     }
 
-    let byAccount;
+    let parsed;
     try {
-      byAccount = parsePlaynite(await request.json());
+      parsed = parsePlaynite(await request.json());
     } catch (e) {
       return json({ error: e instanceof Error ? e.message : "JSON invalide" }, 400);
     }
     await upsertAccounts(env.DB);
     const results: SyncResult[] = [];
-    for (const [accountId, items] of byAccount) {
-      results.push(await syncAccount(env, accountId, "playnite", async () => items));
+    for (const [accountId, items] of parsed.byAccount) {
+      const games = parsed.achievements.get(accountId) ?? [];
+      const platform = allAccounts().find((a) => a.id === accountId)?.platform ?? "local";
+      results.push(
+        await syncAccount(env, accountId, "playnite", async () => ({
+          items,
+          after: async () => ({ achievements: await recordPlayniteAchievements(env.DB, accountId, platform, games) }),
+        })),
+      );
     }
     return json({ results });
   }

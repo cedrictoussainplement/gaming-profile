@@ -111,7 +111,7 @@ export function LibraryView() {
       <section className="stats">
         <Stat icon={Gamepad2} label="Jeux" value={fmt(totals.owned)} hint={`dont ${fmt(totals.played)} joués`} />
         <Stat icon={Clock} label="Temps de jeu" value={formatHours(totals.minutes)} hint="tous comptes confondus" />
-        <Stat icon={Trophy} label="Succès Steam" value={fmt(totals.steamAchievements)} hint="débloqués, 2 comptes" />
+        <Stat icon={Trophy} label="Succès PC" value={fmt(totals.achievements)} hint="Steam, Epic, EA…, main et smurf réunis" />
         <Stat icon={Medal} label="Trophées PlayStation" value={fmt(psnTotal)} hint={<GradeCounts counts={totals.psnTrophies} />} />
         <Stat
           icon={Sparkles}
