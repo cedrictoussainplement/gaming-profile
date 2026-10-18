@@ -104,13 +104,46 @@ async function loadPsn(env: Env, accountId: string, npsso: string): Promise<Load
   };
 }
 
+/** 4 premiers octets du SHA-256 : permet de comparer deux clés sans jamais les montrer. */
+async function fingerprint(value: string) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(hash).slice(0, 4)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Diagnostic public : quels secrets le Worker voit (jamais leur valeur) et les dernières synchros. */
+async function health(env: Env) {
+  const secret = async (name: string) => {
+    const v = env[name];
+    if (typeof v !== "string" || !v) return { present: false };
+    const clean = v.trim().replace(/^"|"$/g, "");
+    return { present: true, length: v.length, ...(clean !== v ? { cleanedLength: clean.length } : {}) };
+  };
+  const ingest = typeof env.INGEST_KEY === "string" ? env.INGEST_KEY.trim().replace(/^"|"$/g, "") : "";
+  const { results } = await env.DB.prepare(
+    "SELECT account_id, at, ok, games, message FROM sync_runs WHERE id IN (SELECT MAX(id) FROM sync_runs GROUP BY account_id) ORDER BY at DESC",
+  ).all();
+  return {
+    secrets: {
+      INGEST_KEY: { ...(await secret("INGEST_KEY")), ...(ingest ? { fingerprint: await fingerprint(ingest) } : {}) },
+      STEAM_API_KEY: await secret("STEAM_API_KEY"),
+      ...Object.fromEntries(await Promise.all(psnAccounts.map(async (a) => [a.npssoSecret, await secret(a.npssoSecret)]))),
+    },
+    lastSyncs: results,
+  };
+}
+
 const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
 
 /** Compare la clé reçue à INGEST_KEY en temps constant. */
 async function authorized(request: Request, env: Env) {
-  const expected = env.INGEST_KEY;
-  const given = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  // trim : un espace ou un retour à la ligne collé avec la valeur dans Cloudflare ne doit pas tout bloquer.
+  const expected = env.INGEST_KEY?.trim().replace(/^"|"$/g, "");
+  const given =
+    request.headers
+      .get("authorization")
+      ?.replace(/^Bearer\s+/i, "")
+      .trim() ?? "";
   if (!expected || !given) return false;
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(given)), crypto.subtle.digest("SHA-256", enc.encode(expected))]);
@@ -154,6 +187,10 @@ async function importTarkov(request: Request, env: Env, url: URL): Promise<Respo
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/api/stats" && request.method === "GET") {
     return json(await readStats(env.DB), 200, { "cache-control": "public, max-age=300" });
+  }
+
+  if (url.pathname === "/api/health" && request.method === "GET") {
+    return json(await health(env), 200, { "cache-control": "no-store" });
   }
 
   if (url.pathname === "/api/library" && request.method === "GET") {
