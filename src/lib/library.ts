@@ -96,3 +96,24 @@ export interface CombinedTrophy extends Trophy {
 
 /** Date valide pour l'affichage (Steam et PSN mettent 1970 quand ils n'ont pas la date). */
 export const realDate = (iso: string | null) => (iso && iso >= "2000" ? iso : null);
+
+/** GET /api/activity : derniers succès et sessions, du plus récent au plus ancien. */
+export interface Activity {
+  days: {
+    /** AAAA-MM-JJ */
+    date: string;
+    unlocks: {
+      gameId: number;
+      game: string;
+      accountId: string;
+      platform: string;
+      name: string;
+      icon: string | null;
+      grade: string | null;
+      rarity: number | null;
+      earnedAt: string;
+    }[];
+    /** Temps ajouté depuis la synchro précédente, par jeu et compte. */
+    sessions: { gameId: number; game: string; cover: string | null; accountId: string; platform: string; minutes: number }[];
+  }[];
+}

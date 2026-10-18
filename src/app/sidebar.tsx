@@ -1,9 +1,10 @@
-import { ChartColumn, Clock, Crosshair, House, Layers, Library, Users } from "lucide-react";
+import { Activity, ChartColumn, Clock, Crosshair, House, Layers, Library, Users } from "lucide-react";
 import { profile } from "@/data/profile";
 
 const nav = [
   { href: "/", label: "Accueil", icon: House },
   { href: "/bibliotheque", label: "Bibliothèque", icon: Library },
+  { href: "/#activite", label: "Activité", icon: Activity },
   { href: "/#temps", label: "Temps de jeu", icon: Clock },
   { href: "/#plateformes", label: "Plateformes", icon: Layers },
   { href: "/#tarkov", label: "Tarkov", icon: Crosshair },
