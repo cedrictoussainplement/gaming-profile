@@ -1,0 +1,25 @@
+// Un seul Worker : le site statique (out/), l'API /api/* et la synchro nocturne.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gaming-profile",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./out",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
+  // Tous les jours à 4 h UTC.
+  "triggers": { "crons": ["0 4 * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gaming-profile",
+      "database_id": "fc443380-e5a3-4440-97ef-52d9c21294a5",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}

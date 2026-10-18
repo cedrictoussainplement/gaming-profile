@@ -1,0 +1,6 @@
+Id: ProfilGamer_reask
+Name: Profil gamer (envoi des heures)
+Author: reask
+Version: 1.0
+Module: ProfilGamer.psm1
+Type: Script
