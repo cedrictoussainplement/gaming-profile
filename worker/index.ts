@@ -2,16 +2,24 @@
 //   GET  /api/stats     heures agrégées, public
 //   POST /api/playnite  import des heures envoyées par Playnite (clé INGEST_KEY)
 //   POST /api/sync      lance la synchro Steam + PSN tout de suite (clé INGEST_KEY)
+//                       ?trophies=1 : télécharge plutôt un lot de succès / trophées en attente
+//   GET  /api/library   tous les jeux possédés ou joués, avec heures et progression des succès, public
+//   GET  /api/game?id=  fiche d'un jeu : heures par compte, succès et trophées, public
 //   GET  /api/tarkov    profils Tarkov importés, public
 //   POST /api/tarkov    import d'un profil JSON tarkov.dev, ?mode=regular|pve|pvp-season|arena (clé INGEST_KEY)
 
 import { psnAccounts, steamAccounts } from "./accounts";
 import { logSync, readStats, recordPlaytime, upsertAccounts, type PlaytimeItem } from "./db";
+import { readGame, readLibrary } from "./library";
 import { parsePlaynite } from "./sources/playnite";
-import { fetchPsn } from "./sources/psn";
+import { fetchPsnPlayed, fetchPsnPurchased, fetchPsnTrophyTitles, psnAuth } from "./sources/psn";
 import { fetchSteam } from "./sources/steam";
+import { recordPsnTrophyTitles, syncTrophies } from "./trophies";
 import { guessMode, isMode, summarizeTarkov } from "./sources/tarkov";
 import { tarkovAccountId, type TarkovProfile, type TarkovResponse } from "../src/lib/tarkov";
+
+/** Doit correspondre au 2e cron de wrangler.jsonc. */
+const TROPHY_CRON = "*/10 * * * *";
 
 export interface Env {
   DB: D1Database;
@@ -25,16 +33,23 @@ interface SyncResult {
   account: string;
   ok: boolean;
   games?: number;
+  owned?: number;
   changed?: number;
+  trophyTitles?: number;
+  warning?: string;
   error?: string;
 }
 
-async function syncAccount(env: Env, accountId: string, source: string, load: () => Promise<PlaytimeItem[]>): Promise<SyncResult> {
+type Loaded = PlaytimeItem[] | { items: PlaytimeItem[]; after?: () => Promise<Partial<SyncResult>> };
+
+async function syncAccount(env: Env, accountId: string, source: string, load: () => Promise<Loaded>): Promise<SyncResult> {
   try {
-    const items = await load();
-    const { games, changed } = await recordPlaytime(env.DB, accountId, source, items);
-    await logSync(env.DB, accountId, true, games, null);
-    return { account: accountId, ok: true, games, changed };
+    const loaded = await load();
+    const { items, after } = Array.isArray(loaded) ? { items: loaded, after: undefined } : loaded;
+    const { games, owned, changed } = await recordPlaytime(env.DB, accountId, source, items);
+    const extra = after ? await after() : {};
+    await logSync(env.DB, accountId, true, games, extra.warning ?? null);
+    return { account: accountId, ok: true, games, owned, changed, ...extra };
   } catch (e) {
     const error = e instanceof Error ? e.message.trim() : String(e);
     await logSync(env.DB, accountId, false, null, error);
@@ -58,11 +73,35 @@ async function syncAll(env: Env): Promise<SyncResult[]> {
       await syncAccount(env, a.id, "psn", () => {
         const npsso = env[a.npssoSecret];
         if (typeof npsso !== "string" || !npsso) throw new Error(`Secret ${a.npssoSecret} manquant`);
-        return fetchPsn(npsso);
+        return loadPsn(env, a.id, npsso);
       }),
     );
   }
   return results;
+}
+
+/** Jeux joués + achetés, puis la liste des trophées une fois les jeux enregistrés. */
+async function loadPsn(env: Env, accountId: string, npsso: string): Promise<Loaded> {
+  const auth = await psnAuth(npsso);
+  const played = await fetchPsnPlayed(auth);
+  const warnings: string[] = [];
+  // Les achats passent par une API GraphQL moins stable : un échec ne bloque pas les heures.
+  const purchased = await fetchPsnPurchased(auth).catch((e) => {
+    warnings.push(`achats : ${e instanceof Error ? e.message : e}`);
+    return [];
+  });
+  return {
+    items: [...played, ...purchased],
+    after: async () => {
+      let trophyTitles: number | undefined;
+      try {
+        trophyTitles = await recordPsnTrophyTitles(env.DB, accountId, await fetchPsnTrophyTitles(auth));
+      } catch (e) {
+        warnings.push(`trophées : ${e instanceof Error ? e.message : e}`);
+      }
+      return { trophyTitles, ...(warnings.length ? { warning: warnings.join(" ; ") } : {}) };
+    },
+  };
 }
 
 const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
@@ -74,10 +113,7 @@ async function authorized(request: Request, env: Env) {
   const given = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   if (!expected || !given) return false;
   const enc = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", enc.encode(given)),
-    crypto.subtle.digest("SHA-256", enc.encode(expected)),
-  ]);
+  const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(given)), crypto.subtle.digest("SHA-256", enc.encode(expected))]);
   return crypto.subtle.timingSafeEqual(a, b);
 }
 
@@ -120,6 +156,16 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     return json(await readStats(env.DB), 200, { "cache-control": "public, max-age=300" });
   }
 
+  if (url.pathname === "/api/library" && request.method === "GET") {
+    return json(await readLibrary(env.DB), 200, { "cache-control": "public, max-age=300" });
+  }
+
+  if (url.pathname === "/api/game" && request.method === "GET") {
+    const id = Number(url.searchParams.get("id"));
+    const game = Number.isInteger(id) && id > 0 ? await readGame(env.DB, id) : null;
+    return game ? json(game, 200, { "cache-control": "public, max-age=300" }) : json({ error: "Jeu introuvable" }, 404);
+  }
+
   if (url.pathname === "/api/tarkov" && request.method === "GET") {
     const { results } = await env.DB.prepare("SELECT summary FROM tarkov_profiles").all<{ summary: string }>();
     const body: TarkovResponse = { profiles: results.map((r) => JSON.parse(r.summary) as TarkovProfile) };
@@ -136,7 +182,10 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (request.method !== "POST") return json({ error: "POST attendu" }, 405);
     if (!(await authorized(request, env))) return json({ error: "Clé invalide" }, 401);
 
-    if (url.pathname === "/api/sync") return json({ results: await syncAll(env) });
+    if (url.pathname === "/api/sync") {
+      if (url.searchParams.get("trophies")) return json(await syncTrophies(env));
+      return json({ results: await syncAll(env) });
+    }
 
     let byAccount;
     try {
@@ -162,10 +211,24 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
+    if (event.cron === TROPHY_CRON) {
+      ctx.waitUntil(
+        syncTrophies(env).then((r) => {
+          if (r.fetched || r.errors.length) console.log(`Trophées : ${r.fetched} jeux, ${r.errors.length} erreurs, ${r.remaining} en attente`);
+          for (const e of r.errors) console.log(`${e.account} ${e.game} : ${e.error}`);
+        }),
+      );
+      return;
+    }
     ctx.waitUntil(
       syncAll(env).then((results) => {
-        for (const r of results) console.log(r.ok ? `${r.account} : ${r.games} jeux, ${r.changed} changés` : `${r.account} : ${r.error}`);
+        for (const r of results)
+          console.log(
+            r.ok
+              ? `${r.account} : ${r.owned} possédés, ${r.games} joués, ${r.changed} changés${r.warning ? ` (${r.warning})` : ""}`
+              : `${r.account} : ${r.error}`,
+          );
       }),
     );
   },

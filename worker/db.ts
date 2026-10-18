@@ -8,6 +8,8 @@ export interface PlaytimeItem {
   minutes: number;
   lastPlayed?: string | null;
   cover?: string | null;
+  /** Steam : le jeu a des succès. */
+  hasAchievements?: boolean;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -25,7 +27,7 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-async function batchAll(db: D1Database, statements: D1PreparedStatement[]) {
+export async function batchAll(db: D1Database, statements: D1PreparedStatement[]) {
   const results: D1Result[] = [];
   for (let i = 0; i < statements.length; i += 50) {
     results.push(...(await db.batch(statements.slice(i, i + 50))));
@@ -44,24 +46,8 @@ export async function upsertAccounts(db: D1Database) {
   );
 }
 
-/**
- * Enregistre le temps de jeu d'un compte. Crée les jeux et alias manquants, puis
- * n'écrit une ligne d'historique que pour les jeux dont le temps a changé.
- */
-export async function recordPlaytime(db: D1Database, accountId: string, source: string, items: PlaytimeItem[]) {
-  // Une source peut renvoyer plusieurs lignes pour un même id (ex. versions PS4 et PS5) : on les additionne.
-  const merged = new Map<string, PlaytimeItem>();
-  for (const i of items) {
-    const prev = merged.get(i.externalId);
-    if (!prev) merged.set(i.externalId, { ...i });
-    else {
-      prev.minutes += i.minutes;
-      if (i.lastPlayed && (!prev.lastPlayed || i.lastPlayed > prev.lastPlayed)) prev.lastPlayed = i.lastPlayed;
-      prev.cover ??= i.cover;
-    }
-  }
-  const played = [...merged.values()].filter((i) => i.minutes > 0 && i.name.trim() && slugify(i.name));
-
+/** Crée les jeux et alias manquants d'une source et renvoie id externe → id d'alias. */
+export async function ensureAliases(db: D1Database, source: string, items: { externalId: string; name: string; cover?: string | null }[]) {
   const known = new Map<string, number>();
   const loadAliases = async () => {
     const { results } = await db
@@ -72,7 +58,7 @@ export async function recordPlaytime(db: D1Database, accountId: string, source: 
   };
   await loadAliases();
 
-  const missing = played.filter((i) => !known.has(i.externalId));
+  const missing = items.filter((i) => !known.has(i.externalId));
   if (missing.length) {
     const upsertGame = db.prepare(
       "INSERT INTO games (slug, name, cover_url) VALUES (?, ?, ?) " +
@@ -93,6 +79,111 @@ export async function recordPlaytime(db: D1Database, accountId: string, source: 
       }),
     );
     await loadAliases();
+  }
+  return known;
+}
+
+/** Ajoute à la bibliothèque du compte les jeux qui n'y sont pas encore. */
+export async function markOwned(db: D1Database, accountId: string, aliasIds: number[]) {
+  const { results } = await db.prepare("SELECT alias_id FROM library WHERE account_id = ?").bind(accountId).all<{ alias_id: number }>();
+  const owned = new Set(results.map((r) => r.alias_id));
+  const insert = db.prepare("INSERT OR IGNORE INTO library (account_id, alias_id, first_seen) VALUES (?, ?, ?)");
+  const day = today();
+  await batchAll(
+    db,
+    [...new Set(aliasIds)].filter((id) => !owned.has(id)).map((id) => insert.bind(accountId, id, day)),
+  );
+}
+
+/**
+ * Note l'état connu des succès d'un compte (wanted). Le cron des trophées ira
+ * chercher le détail des jeux dont l'état a changé depuis le dernier passage.
+ */
+export async function queueTrophySets(
+  db: D1Database,
+  accountId: string,
+  platform: string,
+  sets: {
+    aliasId: number;
+    wanted: string;
+    earned?: number;
+    total?: number;
+    grades?: string | null;
+    lastEarned?: string | null;
+    meta?: string | null;
+  }[],
+) {
+  const { results } = await db
+    .prepare("SELECT alias_id, wanted FROM trophy_sets WHERE account_id = ?")
+    .bind(accountId)
+    .all<{ alias_id: number; wanted: string | null }>();
+  const previous = new Map(results.map((r) => [r.alias_id, r.wanted]));
+  // Le résumé (earned, total…) n'est écrit que par les sources qui le donnent sans détail (PSN).
+  const upsert = db.prepare(
+    "INSERT INTO trophy_sets (account_id, alias_id, platform, earned, total, grades, last_earned, meta, wanted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+      "ON CONFLICT (account_id, alias_id) DO UPDATE SET wanted = excluded.wanted, " +
+      "earned = COALESCE(excluded.earned, trophy_sets.earned), total = COALESCE(excluded.total, trophy_sets.total), " +
+      "grades = COALESCE(excluded.grades, trophy_sets.grades), last_earned = COALESCE(excluded.last_earned, trophy_sets.last_earned), " +
+      "meta = COALESCE(excluded.meta, trophy_sets.meta)",
+  );
+  await batchAll(
+    db,
+    sets
+      .filter((s) => previous.get(s.aliasId) !== s.wanted)
+      .map((s) =>
+        upsert.bind(
+          accountId,
+          s.aliasId,
+          platform,
+          s.earned ?? null,
+          s.total ?? null,
+          s.grades ?? null,
+          s.lastEarned ?? null,
+          s.meta ?? null,
+          s.wanted,
+        ),
+      ),
+  );
+}
+
+/**
+ * Enregistre la bibliothèque et le temps de jeu d'un compte. Crée les jeux et alias
+ * manquants, ajoute les jeux possédés (même jamais lancés), puis n'écrit une ligne
+ * d'historique que pour les jeux dont le temps a changé.
+ */
+export async function recordPlaytime(db: D1Database, accountId: string, source: string, items: PlaytimeItem[]) {
+  // Une source peut renvoyer plusieurs lignes pour un même id (ex. versions PS4 et PS5) : on les additionne.
+  const merged = new Map<string, PlaytimeItem>();
+  for (const i of items) {
+    const prev = merged.get(i.externalId);
+    if (!prev) merged.set(i.externalId, { ...i });
+    else {
+      prev.minutes += i.minutes;
+      if (i.lastPlayed && (!prev.lastPlayed || i.lastPlayed > prev.lastPlayed)) prev.lastPlayed = i.lastPlayed;
+      prev.cover ??= i.cover;
+      prev.hasAchievements ||= i.hasAchievements;
+    }
+  }
+  const valid = [...merged.values()].filter((i) => i.name.trim() && slugify(i.name));
+  const played = valid.filter((i) => i.minutes > 0);
+
+  const known = await ensureAliases(db, source, valid);
+  await markOwned(
+    db,
+    accountId,
+    valid.flatMap((i) => known.get(i.externalId) ?? []),
+  );
+
+  if (source === "steam") {
+    // Steam ne donne pas de résumé des succès : on redemande le détail quand le temps de jeu bouge.
+    await queueTrophySets(
+      db,
+      accountId,
+      "steam",
+      played
+        .filter((i) => i.hasAchievements && known.has(i.externalId))
+        .map((i) => ({ aliasId: known.get(i.externalId)!, wanted: String(i.minutes) })),
+    );
   }
 
   const { results: latest } = await db
@@ -117,7 +208,7 @@ export async function recordPlaytime(db: D1Database, accountId: string, source: 
     db,
     changed.map((i) => insert.bind(accountId, known.get(i.externalId)!, day, i.minutes, i.lastPlayed ?? null)),
   );
-  return { games: played.length, changed: changed.length };
+  return { games: played.length, owned: valid.length, changed: changed.length };
 }
 
 export async function logSync(db: D1Database, accountId: string, ok: boolean, games: number | null, message: string | null) {
@@ -136,7 +227,7 @@ function mondayOf(day: string) {
 const WEEKS = 12;
 
 export async function readStats(db: D1Database): Promise<Stats> {
-  const [snapshots, syncs] = await db.batch([
+  const [snapshots, syncs, libraryRow] = await db.batch([
     db.prepare(
       "SELECT s.account_id, s.alias_id, s.taken_on, s.minutes, s.last_played, a.platform, g.id AS game_id, g.name, g.cover_url " +
         "FROM playtime_snapshots s JOIN accounts a ON a.id = s.account_id " +
@@ -144,7 +235,15 @@ export async function readStats(db: D1Database): Promise<Stats> {
         "WHERE g.hidden = 0 ORDER BY s.taken_on, s.alias_id",
     ),
     db.prepare("SELECT account_id, MAX(at) AS at FROM sync_runs WHERE ok = 1 GROUP BY account_id"),
+    db.prepare(
+      "SELECT (SELECT COUNT(*) FROM games g WHERE g.hidden = 0 AND EXISTS (SELECT 1 FROM game_aliases al WHERE al.game_id = g.id AND " +
+        "(EXISTS (SELECT 1 FROM library l WHERE l.alias_id = al.id) OR EXISTS (SELECT 1 FROM playtime_snapshots s WHERE s.alias_id = al.id)))) AS owned, " +
+        "(SELECT COALESCE(SUM(earned), 0) FROM trophy_sets WHERE platform = 'steam') AS achievements, " +
+        "(SELECT COALESCE(SUM(earned), 0) FROM trophy_sets WHERE platform = 'psn') AS trophies, " +
+        "(SELECT COALESCE(SUM(json_extract(grades, '$.earned.platinum')), 0) FROM trophy_sets WHERE platform = 'psn') AS platinums",
+    ),
   ]);
+  const library = (libraryRow.results[0] ?? { owned: 0, achievements: 0, trophies: 0, platinums: 0 }) as Stats["library"];
   type Row = {
     account_id: string;
     alias_id: number;
@@ -234,5 +333,6 @@ export async function readStats(db: D1Database): Promise<Stats> {
       .slice(0, 12)
       .map((g) => ({ ...g, platforms: [...g.platforms] })),
     weekly: [...weekly].map(([weekStart, minutes]) => ({ weekStart, minutes })),
+    library,
   };
 }

@@ -1,4 +1,5 @@
-# Envoie le temps de jeu de Playnite au profil (POST /api/playnite).
+# Envoie la bibliothèque Playnite au profil (POST /api/playnite) : tous les jeux,
+# installés ou non, avec leur temps de jeu. Les jeux cachés dans Playnite sont ignorés.
 # Envoi automatique au démarrage de Playnite et à la fin de chaque partie,
 # ou à la main via le menu Extensions > Profil gamer.
 # Réglages dans config.json, à côté de ce fichier (voir config.example.json).
@@ -16,7 +17,7 @@ function Send-ProfilHours {
     try {
         $config = Get-ProfilConfig
         $games = @(
-            $PlayniteApi.Database.Games | Where-Object { $_.Playtime -gt 0 } | ForEach-Object {
+            $PlayniteApi.Database.Games | Where-Object { -not $_.Hidden } | ForEach-Object {
                 @{
                     id           = if ($_.GameId) { [string]$_.GameId } else { [string]$_.Id }
                     name         = $_.Name
