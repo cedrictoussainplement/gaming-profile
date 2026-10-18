@@ -412,6 +412,153 @@ a.account:hover,
   color: var(--muted);
 }
 
+/* Temps de jeu (V2) */
+.account-hours {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-hours + .badge {
+  margin-left: 0;
+}
+
+.cover {
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-hover);
+}
+
+.game-hours {
+  margin-top: auto;
+  padding-top: 8px;
+  font-weight: 700;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.charts {
+  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.chart {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chart-title {
+  font-weight: 600;
+}
+
+.hbars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hbar {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.hbar-label {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hbar-track {
+  height: 10px;
+}
+
+.hbar-fill {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+}
+
+.hbar-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.vbars {
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vbar {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  outline: none;
+}
+
+.vbar-fill {
+  width: 70%;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+
+.vbar:hover .vbar-fill,
+.vbar:focus-visible .vbar-fill {
+  filter: brightness(0.85);
+}
+
+.vbar-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.vbar-tip strong {
+  display: block;
+}
+
+.vbar:hover .vbar-tip,
+.vbar:focus-visible .vbar-tip {
+  display: block;
+}
+
+.vbars-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 /* Mobile */
 @media (max-width: 760px) {
   .shell {
