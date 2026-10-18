@@ -4,6 +4,7 @@
 //   POST /api/sync      lance la synchro Steam + PSN tout de suite (clé INGEST_KEY)
 //                       ?trophies=1 : télécharge plutôt un lot de succès / trophées en attente
 //   GET  /api/library   tous les jeux possédés ou joués, avec heures et progression des succès, public
+//   GET  /api/activity  derniers succès débloqués et temps joué par jour, public
 //   GET  /api/game?id=  fiche d'un jeu : heures par compte, succès et trophées, public
 //   GET  /api/tarkov    profils Tarkov importés, public
 //   POST /api/tarkov    import d'un profil JSON tarkov.dev, ?mode=regular|pve|pvp-season|arena (clé INGEST_KEY)
@@ -14,6 +15,7 @@
 
 import { allAccounts, psnAccounts, steamAccounts } from "./accounts";
 import { logSync, readStats, recordPlaytime, upsertAccounts, type PlaytimeItem } from "./db";
+import { readActivity } from "./activity";
 import { readGame, readLibrary } from "./library";
 import { parsePlaynite } from "./sources/playnite";
 import { fetchPsnPlayed, fetchPsnPurchased, fetchPsnTrophyTitles, psnAuth } from "./sources/psn";
@@ -205,6 +207,10 @@ async function handleApi(request: Request, env: Env, url: URL, ctx: ExecutionCon
 
   if (url.pathname === "/api/health" && request.method === "GET") {
     return json(await health(env), 200, { "cache-control": "no-store" });
+  }
+
+  if (url.pathname === "/api/activity" && request.method === "GET") {
+    return json(await readActivity(env.DB), 200, { "cache-control": "public, max-age=300" });
   }
 
   if (url.pathname === "/api/library" && request.method === "GET") {

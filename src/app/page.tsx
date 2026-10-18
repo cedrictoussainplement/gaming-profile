@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { profile, type Account, type Platform, type SyncSource } from "@/data/profile";
+import { ActivityFeed } from "./activity";
 import { AccountHours, LibraryCount, LibraryHint, PlaytimeSection, StatsProvider, TotalHint, TotalHours, TrophyCount, TrophyHint } from "./live";
 import { Sidebar } from "./sidebar";
 import { TrackerMini, TrackersProvider } from "./tracker-stats";
@@ -120,6 +121,11 @@ export default function Home() {
             <StatCard icon={Crosshair} label="Jeux suivis" value={String(games.size)} hint={`${profile.trackers.length} trackers`} />
             <StatCard icon={Library} label="Bibliothèque" value={<LibraryCount />} hint={<LibraryHint />} />
             <StatCard icon={Trophy} label="Succès et trophées" value={<TrophyCount />} hint={<TrophyHint />} />
+          </section>
+
+          <section id="activite">
+            <h2>Activité récente</h2>
+            <ActivityFeed />
           </section>
 
           <section id="temps">

@@ -1,4 +1,4 @@
-# Envoie la bibliothèque Playnite au profil (POST /api/playnite) : tous les jeux,
+﻿# Envoie la bibliothèque Playnite au profil (POST /api/playnite) : tous les jeux,
 # installés ou non, avec leur temps de jeu. Les jeux cachés dans Playnite sont ignorés.
 # Joint les succès Epic, EA, Ubisoft… lus par l'extension Playnite Achievements
 # (Steam et PlayStation viennent directement de leurs API).
@@ -119,7 +119,8 @@ function Send-ProfilHours {
             -Body ([Text.Encoding]::UTF8.GetBytes($body))
 
         $failed = @($response.results | Where-Object { -not $_.ok })
-        $message = "Profil gamer : $($games.Count) jeux envoyés, dont $withAchievements avec succès$achievementNote"
+        $updated = [int](@($response.results | ForEach-Object { [int]$_.achievements }) | Measure-Object -Sum).Sum
+        $message = "Profil gamer : $($games.Count) jeux envoyés, dont $withAchievements avec succès ($updated mis à jour sur le site)$achievementNote"
         if ($failed.Count) { $message += ", erreurs : " + (($failed | ForEach-Object { "$($_.account) ($($_.error))" }) -join ", ") }
         $__logger.Info($message)
         # Trace du dernier envoi (sans la clé), lisible pour le dépannage.
