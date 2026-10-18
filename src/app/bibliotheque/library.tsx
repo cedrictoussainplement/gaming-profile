@@ -2,18 +2,19 @@
 
 // Bibliothèque complète : lit /api/library (servi par le Worker).
 
-import { Clock, Gamepad2, Medal, Search, Sparkles, Trophy } from "lucide-react";
+import { Award, Clock, Gamepad2, Medal, Search, Sparkles, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Library, LibraryGame } from "@/lib/library";
 import { formatHours, platformName } from "../live";
 import { fmt, formatRarity, GradeCounts, Progress, rarityClass } from "../trophy-ui";
 
-type Sort = "minutes" | "recent" | "name" | "progress";
+type Sort = "minutes" | "recent" | "name" | "progress" | "points";
 
 const sorts: { id: Sort; label: string }[] = [
   { id: "minutes", label: "Plus joués" },
   { id: "recent", label: "Joués récemment" },
   { id: "progress", label: "Progression des succès" },
+  { id: "points", label: "Points" },
   { id: "name", label: "Nom" },
 ];
 
@@ -21,6 +22,7 @@ const compare: Record<Sort, (a: LibraryGame, b: LibraryGame) => number> = {
   minutes: (a, b) => b.minutes - a.minutes,
   recent: (a, b) => (b.lastPlayed ?? "").localeCompare(a.lastPlayed ?? ""),
   progress: (a, b) => ratio(b) - ratio(a),
+  points: (a, b) => b.points - a.points,
   name: () => 0,
 };
 const ratio = (g: LibraryGame) => (g.achievements ? g.achievements.earned / g.achievements.total : -1);
@@ -46,6 +48,7 @@ export function GameCard({ game }: { game: LibraryGame }) {
           <span className={game.minutes > 0 ? "game-hours" : "game-hours unplayed"}>
             {game.minutes > 0 ? formatHours(game.minutes) : "Jamais lancé"}
           </span>
+          {game.points > 0 && <span className="game-points">{fmt(game.points)} pts</span>}
           {game.achievements && <Progress earned={game.achievements.earned} total={game.achievements.total} platinum={game.platinum} />}
         </div>
       </div>
@@ -119,6 +122,7 @@ export function LibraryView() {
           value={fmt(totals.completed)}
           hint={totals.pendingTrophies ? `succès de ${fmt(totals.pendingTrophies)} jeux en cours de chargement` : "tous les succès obtenus"}
         />
+        <Stat icon={Award} label="Score" value={fmt(totals.points)} hint="points selon la rareté de chaque succès" />
       </section>
 
       {library.rarest.length > 0 && (

@@ -1,7 +1,7 @@
 // Lecture de la bibliothèque (GET /api/library) et de la fiche d'un jeu (GET /api/game).
 
 import type { CombinedTrophy, GameDetail, Library, LibraryGame, RareTrophy, TrophyCounts } from "../src/lib/library";
-import { parseGrades, readCombined, zero } from "./combined";
+import { parseGrades, POINTS_BY_GAME, readCombined, zero } from "./combined";
 
 const LATEST_PLAYTIME =
   "SELECT s.account_id, a.platform, al.game_id, s.alias_id, s.minutes, s.last_played FROM playtime_snapshots s " +
@@ -13,7 +13,7 @@ const later = (a: string | null, b: string | null) => (b && (!a || b > a) ? b : 
 
 export async function readLibrary(db: D1Database): Promise<Library> {
   const sets = await readCombined(db);
-  const [games, owned, played, rarest] = await db.batch([
+  const [games, owned, played, rarest, points] = await db.batch([
     db.prepare("SELECT id, name, cover_url FROM games WHERE hidden = 0"),
     db.prepare(
       "SELECT l.account_id, a.platform, al.game_id FROM library l JOIN accounts a ON a.id = l.account_id JOIN game_aliases al ON al.id = l.alias_id",
@@ -25,6 +25,7 @@ export async function readLibrary(db: D1Database): Promise<Library> {
         "JOIN game_aliases al ON al.id = t.alias_id JOIN games g ON g.id = al.game_id " +
         "WHERE t.earned_at IS NOT NULL AND t.rarity IS NOT NULL AND g.hidden = 0 ORDER BY t.rarity ASC, t.earned_at DESC LIMIT 48",
     ),
+    db.prepare(POINTS_BY_GAME),
   ]);
 
   const info = new Map((games.results as { id: number; name: string; cover_url: string | null }[]).map((g) => [g.id, g]));
@@ -44,6 +45,7 @@ export async function readLibrary(db: D1Database): Promise<Library> {
         accounts: [],
         achievements: null,
         platinum: false,
+        points: 0,
         platformSet: new Set(),
         accountSet: new Set(),
       };
@@ -86,6 +88,14 @@ export async function readLibrary(db: D1Database): Promise<Library> {
     }
   }
 
+  let totalPoints = 0;
+  for (const p of points.results as { game_id: number; points: number }[]) {
+    const e = entry(p.game_id);
+    if (!e) continue;
+    e.points = p.points;
+    totalPoints += p.points;
+  }
+
   const list = [...byId.values()].map(({ platformSet, accountSet, ...g }) => ({ ...g, platforms: [...platformSet], accounts: [...accountSet] }));
   list.sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, "fr"));
 
@@ -99,6 +109,7 @@ export async function readLibrary(db: D1Database): Promise<Library> {
       psnTrophies,
       completed: completed.size,
       pendingTrophies,
+      points: totalPoints,
     },
     games: list,
     rarest: uniqueRarest(

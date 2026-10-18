@@ -46,6 +46,16 @@ export interface CombinedSet {
   pending: boolean;
 }
 
+/**
+ * Points façon Exophase : plus un succès est rare, plus il rapporte.
+ * 100 − % de joueurs qui l'ont (au moins 5) ; 25 quand la rareté est inconnue.
+ * Main et smurf réunis : un succès compte une fois.
+ */
+export const POINTS_BY_GAME =
+  "SELECT al.game_id, SUM(CASE WHEN u.r IS NULL THEN 25 ELSE MAX(5, CAST(ROUND(100 - u.r) AS INTEGER)) END) AS points " +
+  "FROM (SELECT alias_id, trophy_id, MIN(rarity) AS r FROM trophies WHERE earned_at IS NOT NULL GROUP BY alias_id, trophy_id) u " +
+  "JOIN game_aliases al ON al.id = u.alias_id GROUP BY al.game_id";
+
 export const zero = (): TrophyCounts => ({ bronze: 0, silver: 0, gold: 0, platinum: 0 });
 export const parseGrades = (g: string | null) => (g ? (JSON.parse(g) as { earned: TrophyCounts; defined: TrophyCounts }) : null);
 const later = (a: string | null, b: string | null) => (b && (!a || b > a) ? b : a);

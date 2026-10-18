@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { profile } from "@/data/profile";
-import { realDate, type CombinedTrophy, type GameDetail } from "@/lib/library";
+import { pointsFor, realDate, type CombinedTrophy, type GameDetail } from "@/lib/library";
 import { formatHours, platformName } from "../live";
 import { TrackerPanel, TrackersProvider } from "../tracker-stats";
 import { fmt, formatRarity, GradeCounts, Progress, rarityClass } from "../trophy-ui";
@@ -182,6 +182,7 @@ export function GameView() {
     .flatMap((s) => s.trophies.map((t) => realDate(t.earnedAt)))
     .filter((d): d is string => d !== null)
     .sort();
+  const points = game.sets.reduce((n, s) => n + s.trophies.filter((t) => t.earnedAt).reduce((m, t) => m + pointsFor(t.rarity), 0), 0);
   const firstUnlock = unlockDates[0];
   const lastUnlock = unlockDates[unlockDates.length - 1];
 
@@ -216,6 +217,13 @@ export function GameView() {
           <div className="stat-value">{lastPlayed ? new Date(lastPlayed).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—"}</div>
           <div className="stat-hint">{lastPlayed ? new Date(lastPlayed).getFullYear() : "jamais lancé ou date inconnue"}</div>
         </div>
+        {points > 0 && (
+          <div className="card tile">
+            <div className="stat-label">Points</div>
+            <div className="stat-value">{fmt(points)}</div>
+            <div className="stat-hint">selon la rareté des succès</div>
+          </div>
+        )}
         {firstUnlock && (
           <div className="card tile">
             <div className="stat-label">Premier succès</div>
